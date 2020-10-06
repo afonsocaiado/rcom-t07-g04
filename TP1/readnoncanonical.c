@@ -5,6 +5,9 @@
 #include <fcntl.h>
 #include <termios.h>
 #include <stdio.h>
+#include <unistd.h>
+#include <string.h>
+#include <stdlib.h>
 
 #define BAUDRATE B38400
 #define _POSIX_SOURCE 1 /* POSIX compliant source */
