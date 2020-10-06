@@ -20,11 +20,11 @@ int main(int argc, char** argv)
 {
     int fd,c, res;
     struct termios oldtio,newtio;
-    char buf[255];
 
+    
     if ( (argc < 2) || 
   	     ((strcmp("/dev/ttyS0", argv[1])!=0) && 
-  	      (strcmp("/dev/ttyS1", argv[1])!=0) )) {
+  	      (strcmp("/dev/ttyS1", argv[1])!=0) )){
       printf("Usage:\tnserial SerialPort\n\tex: nserial /dev/ttyS1\n");
       exit(1);
     }
@@ -59,7 +59,7 @@ int main(int argc, char** argv)
 
   /* 
     VTIME e VMIN devem ser alterados de forma a proteger com um temporizador a 
-    leitura do(s) próximo(s) caracter(es)
+    leitura do(s) prï¿½ximo(s) caracter(es)
   */
 
 
@@ -77,14 +77,14 @@ int main(int argc, char** argv)
     stpcpy(msg, "");
 
     int reading = 1;
-    char tmp[1];
+    char tmp;
 
     while (reading) {       /* loop for input */
-      read(fd,tmp,1);
-      strncat(buf,tmp,1);
-      if(tmp == '\0')
+      read(fd,&tmp,1);
+      if(tmp == '\0'){    
         reading=0;
-        msg[strlen(msg)]=tmp;
+      }
+      msg[strlen(msg)]=tmp;
     }
 
     printf("Press a key...\n");
@@ -94,11 +94,11 @@ int main(int argc, char** argv)
 	  printf("string %s\n", msg);
 
 	  // write string back to sender
-	  write(fd, msg, strlen(msg));
+	  write(fd, msg, strlen(msg)+1);
 
 
   /* 
-    O ciclo WHILE deve ser alterado de modo a respeitar o indicado no guião 
+    O ciclo WHILE deve ser alterado de modo a respeitar o indicado no guiï¿½o 
   */
 
 

@@ -24,6 +24,7 @@ int main(int argc, char** argv)
     char buf[255];
     int i, sum = 0, speed = 0;
     
+    
     if ( (argc < 2) || 
   	     ((strcmp("/dev/ttyS0", argv[1])!=0) && 
   	      (strcmp("/dev/ttyS1", argv[1])!=0) )) {
@@ -79,6 +80,7 @@ int main(int argc, char** argv)
     printf("Write something: ");
 
     char msg[255];
+    stpcpy(msg,"");
 
     fgets(msg,255,stdin);
 
@@ -87,16 +89,19 @@ int main(int argc, char** argv)
     printf("%d bytes written\n", res);
 
     int reading = 1;
-    char tmp[1];
+    char tmp;
+    int count = 0;
+    stpcpy(buf,"");
     while (reading)
     {
-      read(fd,tmp,1);
-      strncat(buf,tmp,1);
+      read(fd,&tmp,1);
       if(tmp == '\0')
         reading=0;
+      buf[count]=tmp;
+      count++;
     }
     
-    printf("\n%s",buf);
+    printf("\n%s\n",buf);
  
 
   /* 
