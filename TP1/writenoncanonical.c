@@ -24,13 +24,13 @@ int main(int argc, char** argv)
     char buf[255];
     int i, sum = 0, speed = 0;
     
-    
+    /*
     if ( (argc < 2) || 
   	     ((strcmp("/dev/ttyS0", argv[1])!=0) && 
   	      (strcmp("/dev/ttyS1", argv[1])!=0) )) {
       printf("Usage:\tnserial SerialPort\n\tex: nserial /dev/ttyS1\n");
       exit(1);
-    }
+    }*/
 
 
   /*
@@ -76,18 +76,23 @@ int main(int argc, char** argv)
 
     printf("New termios structure set\n");
 
+    unsigned char F = 0x7e;
+    unsigned char AC = 0x03; //comando
+    unsigned char AR = 0x01; //resposta
+    unsigned char SET = 0x03;
 
-    printf("Write something: ");
+    unsigned char BCC = AC ^ SET;
 
-    char msg[255];
-    stpcpy(msg,"");
+   
+    //Comand SET
+    res = write(fd,&F,sizeof(char));  
+    res += write(fd,&AC,sizeof(char));  
+    res += write(fd,&SET,sizeof(char));
+    res += write(fd,&BCC,sizeof(char));
+    res += write(fd,&F,sizeof(char));  
 
-    fgets(msg,255,stdin);
-
-    res = write(fd,msg,strlen(msg)+1);   
-    
     printf("%d bytes written\n", res);
-
+    /*
     int reading = 1;
     char tmp;
     int count = 0;
@@ -101,7 +106,7 @@ int main(int argc, char** argv)
       count++;
     }
     
-    printf("\n%s\n",buf);
+    printf("\n%s\n",buf);*/
  
 
   /* 

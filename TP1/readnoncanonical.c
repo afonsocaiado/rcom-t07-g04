@@ -21,13 +21,13 @@ int main(int argc, char** argv)
     int fd,c, res;
     struct termios oldtio,newtio;
 
-    
+    /*
     if ( (argc < 2) || 
   	     ((strcmp("/dev/ttyS0", argv[1])!=0) && 
   	      (strcmp("/dev/ttyS1", argv[1])!=0) )){
       printf("Usage:\tnserial SerialPort\n\tex: nserial /dev/ttyS1\n");
       exit(1);
-    }
+    }*/
 
 
   /*
@@ -73,28 +73,37 @@ int main(int argc, char** argv)
 
     printf("New termios structure set\n");
 
-    char msg[255];
-    stpcpy(msg, "");
+  
+    unsigned char F = 0x7e;
+    unsigned char AC = 0x03; //comando
+    unsigned char AR = 0x01; //resposta
+    unsigned char SET = 0x03;
+    
+    unsigned char readed;
 
-    int reading = 1;
-    char tmp;
-
-    while (reading) {       /* loop for input */
-      read(fd,&tmp,1);
-      if(tmp == '\0'){    
-        reading=0;
-      }
-      msg[strlen(msg)]=tmp;
+    while (readed != F) {       /* wayting for frame start */
+      read(fd,&readed,1);
+      printf("\nFlag\n");
     }
+
+    read(fd,&readed,1);
+    read(fd,&readed,1);
+    if (readed == SET)
+      printf("\nSet Up\n");
+    
+    read(fd,&readed,1);
+    read(fd,&readed,1);
+    if (readed == F)
+      printf("\nFlag\n");
 
     printf("Press a key...\n");
 	  getc(stdin);
 
 
-	  printf("string %s\n", msg);
+	  //printf("string %s\n", msg);
 
 	  // write string back to sender
-	  write(fd, msg, strlen(msg)+1);
+	  //write(fd, msg, strlen(msg)+1);
 
 
   /* 
