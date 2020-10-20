@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdlib.h>
+#include <signal.h>
 
 #define BAUDRATE B38400
 #define MODEMDEVICE "/dev/ttyS1"
@@ -15,7 +16,21 @@
 #define FALSE 0
 #define TRUE 1
 
-volatile int STOP=FALSE;
+//volatile int STOP=FALSE;
+
+enum A { AC = 0x03 , AR = 0x01 };
+enum State { START, FLAG_RCV, A_RCV, C_RCV, BCC_OK, STOP};
+enum C { SET = 0x03, UA = 0x07 };
+
+const unsigned char FLAG = 0x7e;
+
+int time_out =FALSE;
+
+void atende()                   // atende alarme
+{
+	printf("alarme\n");
+  time_out = TRUE;
+}
 
 int main(int argc, char** argv)
 {
@@ -76,51 +91,86 @@ int main(int argc, char** argv)
 
     printf("New termios structure set\n");
 
-    unsigned char F = 0x7e;
-    unsigned char AC = 0x03; //comando
-    unsigned char AR = 0x01; //resposta
-    unsigned char SET = 0x03; 
-    unsigned char UA = 0x07;
+    (void) signal(SIGALRM, atende);
 
     // comandos: SET, I , DISC  --- resposta: UA, RR, REJ
 
     unsigned char BCC = AC ^ SET;
 
     unsigned char buffer[5];
-    buffer[0] = F;
+    buffer[0] = FLAG;
     buffer[1]= AC;
     buffer[2] = SET;
     buffer[3] = BCC;
-    buffer[4] = F;
+    buffer[4] = FLAG;
 
-    printf("\n%li\n",sizeof(buffer));
     res = write(fd,buffer,sizeof(buffer));
+    alarm(3);
    
     printf("%d bytes written\n", res);
 
     unsigned char readed;
 
-    while (readed != F) {       /* wayting for frame start */
-      read(fd,&readed,1);
-      printf("\nFlag\n");
-    }
+    enum State actualState = START;
 
-    read(fd,&readed,1);
-    read(fd,&readed,1);
-    if (readed == UA){
-      printf("\nUA\n");
-    }
+    // Logical Connection
+    while (actualState != STOP)
+    {
+      read(fd,&readed,1);
+  
+      if (time_out && actualState== START)
+        write(fd,buffer,sizeof(buffer));
       
-    read(fd,&readed,1);
-    read(fd,&readed,1);
-    if (readed == F)
-      printf("\nFlag\n"); 
+      switch (actualState)
+      {
+      case START:{
+        if (readed == FLAG)
+          actualState = FLAG_RCV;
+        break;
+      }
+      case FLAG_RCV:{
+        if (readed== AC)
+          actualState = A_RCV;
+        else if (readed != FLAG)
+          actualState = START;
+        break;
+      }  
+      case A_RCV:{
+        if(readed == UA)
+          actualState = C_RCV;
+        else if(readed == FLAG)
+          actualState = FLAG_RCV;
+        else
+          actualState = START;    
+        break;
+      }
+      case C_RCV:{
+        if(readed == (AC ^ UA))
+          actualState = BCC_OK;
+        else if(readed == FLAG)
+          actualState = FLAG_RCV;
+        else
+          actualState = START;  
+        break;
+      }
+      case BCC_OK:{
+        if (readed == FLAG)
+          actualState = STOP;
+        else
+          actualState = START;
+        break;
+      }
+      default:
+        break;
+      }
+    }
+    
+  printf("Logical Connection Completed!\n");
 
   /* 
     O ciclo FOR e as instru��es seguintes devem ser alterados de modo a respeitar 
     o indicado no gui�o 
   */
-
 
     sleep(1);
    
@@ -128,9 +178,6 @@ int main(int argc, char** argv)
       perror("tcsetattr");
       exit(-1);
     }
-
-
-
 
     close(fd);
     return 0;

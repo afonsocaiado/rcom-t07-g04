@@ -14,7 +14,13 @@
 #define FALSE 0
 #define TRUE 1
 
-volatile int STOP=FALSE;
+//volatile int STOP=FALSE;
+
+enum A { AR = 0x03 , AC = 0x01 };
+enum State { START, FLAG_RCV, A_RCV, C_RCV, BCC_OK, STOP};
+enum C { SET = 0x03, UA = 0x07 };
+
+const unsigned char FLAG = 0x7e;
 
 int main(int argc, char** argv)
 {
@@ -74,45 +80,67 @@ int main(int argc, char** argv)
     printf("New termios structure set\n");
 
   
-    unsigned char F = 0x7e;
-    unsigned char AR = 0x03; //resposta
-    unsigned char AC = 0x01; //comando
-    unsigned char SET = 0x03;
-    
     // comandos: SET, I , DISC  --- resposta: UA, RR, REJ
 
     unsigned char readed;
+    enum State actualState = START;
 
-    int start = 0;
-    while (!start)
+    // Logical Connection
+    while (actualState != STOP)
     {
-      while (readed != F) {       /* wayting for frame start */
-        read(fd,&readed,1);
-        printf("\nFlag\n");
+      read(fd,&readed,1);
+      switch (actualState)
+      {
+      case START:{
+        if (readed == FLAG)
+          actualState = FLAG_RCV;
+        break;
       }
-
-      read(fd,&readed,1);
-      read(fd,&readed,1);
-      if (readed == SET){
-        printf("\nSet Up\n");
-        start= 1;
+      case FLAG_RCV:{
+        if (readed== AR)
+          actualState = A_RCV;
+        else if (readed != FLAG)
+          actualState = START;
+        break;
+      }  
+      case A_RCV:{
+        if(readed == SET)
+          actualState = C_RCV;
+        else if(readed == FLAG)
+          actualState = FLAG_RCV;
+        else
+          actualState = START;    
+        break;
       }
-        
-      read(fd,&readed,1);
-      read(fd,&readed,1);
-      if (readed == F)
-        printf("\nFlag\n");
+      case C_RCV:{
+        if(readed == (AR ^ SET))
+          actualState = BCC_OK;
+        else if(readed == FLAG)
+          actualState = FLAG_RCV;
+        else
+          actualState = START;  
+        break;
+      }
+      case BCC_OK:{
+        if (readed == FLAG)
+          actualState = STOP;
+        else
+          actualState = START;
+        break;
+      }
+      default:
+        break;
+      }
     }
 
-    unsigned char UA = 0x07;
     unsigned char BCC = AR ^ UA; 
 
     unsigned char buffer[5];
-    buffer[0] = F;
+    buffer[0] = FLAG;
     buffer[1] = AR;
     buffer[2] = UA;
     buffer[3] = BCC;
-    buffer[4] = F;
+    buffer[4] = FLAG;
 
     printf("Press a key...\n");
 	  getc(stdin);
