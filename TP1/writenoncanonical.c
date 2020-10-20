@@ -79,35 +79,42 @@ int main(int argc, char** argv)
     unsigned char F = 0x7e;
     unsigned char AC = 0x03; //comando
     unsigned char AR = 0x01; //resposta
-    unsigned char SET = 0x03;
+    unsigned char SET = 0x03; 
+    unsigned char UA = 0x07;
+
+    // comandos: SET, I , DISC  --- resposta: UA, RR, REJ
 
     unsigned char BCC = AC ^ SET;
 
-   
-    //Comand SET
-    res = write(fd,&F,sizeof(char));  
-    res += write(fd,&AC,sizeof(char));  
-    res += write(fd,&SET,sizeof(char));
-    res += write(fd,&BCC,sizeof(char));
-    res += write(fd,&F,sizeof(char));  
+    unsigned char buffer[5];
+    buffer[0] = F;
+    buffer[1]= AC;
+    buffer[2] = SET;
+    buffer[3] = BCC;
+    buffer[4] = F;
 
+    printf("\n%li\n",sizeof(buffer));
+    res = write(fd,buffer,sizeof(buffer));
+   
     printf("%d bytes written\n", res);
-    /*
-    int reading = 1;
-    char tmp;
-    int count = 0;
-    stpcpy(buf,"");
-    while (reading)
-    {
-      read(fd,&tmp,1);
-      if(tmp == '\0')
-        reading=0;
-      buf[count]=tmp;
-      count++;
+
+    unsigned char readed;
+
+    while (readed != F) {       /* wayting for frame start */
+      read(fd,&readed,1);
+      printf("\nFlag\n");
     }
-    
-    printf("\n%s\n",buf);*/
- 
+
+    read(fd,&readed,1);
+    read(fd,&readed,1);
+    if (readed == UA){
+      printf("\nUA\n");
+    }
+      
+    read(fd,&readed,1);
+    read(fd,&readed,1);
+    if (readed == F)
+      printf("\nFlag\n"); 
 
   /* 
     O ciclo FOR e as instru��es seguintes devem ser alterados de modo a respeitar 

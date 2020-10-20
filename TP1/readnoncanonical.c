@@ -75,33 +75,51 @@ int main(int argc, char** argv)
 
   
     unsigned char F = 0x7e;
-    unsigned char AC = 0x03; //comando
-    unsigned char AR = 0x01; //resposta
+    unsigned char AR = 0x03; //resposta
+    unsigned char AC = 0x01; //comando
     unsigned char SET = 0x03;
     
+    // comandos: SET, I , DISC  --- resposta: UA, RR, REJ
+
     unsigned char readed;
 
-    while (readed != F) {       /* wayting for frame start */
+    int start = 0;
+    while (!start)
+    {
+      while (readed != F) {       /* wayting for frame start */
+        read(fd,&readed,1);
+        printf("\nFlag\n");
+      }
+
       read(fd,&readed,1);
-      printf("\nFlag\n");
+      read(fd,&readed,1);
+      if (readed == SET){
+        printf("\nSet Up\n");
+        start= 1;
+      }
+        
+      read(fd,&readed,1);
+      read(fd,&readed,1);
+      if (readed == F)
+        printf("\nFlag\n");
     }
 
-    read(fd,&readed,1);
-    read(fd,&readed,1);
-    if (readed == SET)
-      printf("\nSet Up\n");
-    
-    read(fd,&readed,1);
-    read(fd,&readed,1);
-    if (readed == F)
-      printf("\nFlag\n");
+    unsigned char UA = 0x07;
+    unsigned char BCC = AR ^ UA; 
+
+    unsigned char buffer[5];
+    buffer[0] = F;
+    buffer[1] = AR;
+    buffer[2] = UA;
+    buffer[3] = BCC;
+    buffer[4] = F;
 
     printf("Press a key...\n");
 	  getc(stdin);
+  
+    res = write(fd, buffer, sizeof(buffer));
 
-
-	  //printf("string %s\n", msg);
-
+    printf("%d bytes written\n", res);
 	  // write string back to sender
 	  //write(fd, msg, strlen(msg)+1);
 
