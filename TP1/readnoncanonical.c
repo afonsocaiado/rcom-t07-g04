@@ -21,7 +21,7 @@
 //volatile int STOP=FALSE;
 
 enum A { AR = 0x03 , AC = 0x01 };
-enum State { START, FLAG_RCV, A_RCV, C_RCV, BCC_OK, STOP};
+enum State { START, FLAG_RCV, A_RCV, C_RCV, BCC_OK, ESC_STATE, STOP};
 enum C { SET = 0x03, UA = 0x07, DISC = 0x0b, I0 = 0x00, I1 = 0x40, RR0 = 0x05, RR1 = 0x85, REJ0 = 0x01, REJ1 = 0x81};
 
 const unsigned char FLAG = 0x7e;
@@ -77,7 +77,7 @@ int readMessage(int fd, unsigned char C) {
         break;
       }
       case FLAG_RCV:{
-        if (readed== AR)
+        if (readed == AR)
           actualState = A_RCV;
         else if (readed != FLAG)
           actualState = START;
@@ -160,70 +160,56 @@ unsigned char *llread(int fd, int *size) {
   unsigned char c_read;
   int trama = 0;
   int mandarDados = FALSE;
-  unsigned char c;
-  int state = 0;
 
-  while (state != 6)
+  unsigned char readed;
+  enum State actualState = START;
+
+  // Logical Connection
+  while (actualState != STOP)
   {
-    read(fd, &c, 1);
-    
-    switch (state)
+    read(fd,&readed,1);
+    switch (actualState)
     {
-
-    //recebe flag
-    case 0:
-      if (c == FLAG)
-        state = 1;
+    case START:{
+      if (readed == FLAG)
+        actualState = FLAG_RCV;
       break;
-
-    //recebe A
-    case 1:
-      if (c == AR)
-        state = 2;
-      else
-      {
-        if (c == FLAG)
-          state = 1;
-        else
-          state = 0;
-      }
+    }
+    case FLAG_RCV:{
+      if (readed == AR)
+        actualState = A_RCV;
+      else if (readed != FLAG)
+        actualState = START;
       break;
-
-    //recebe C
-    case 2:
-      if (c == I0)
-      {
+    }  
+    case A_RCV:{
+      if(readed == I0){
+        actualState = C_RCV;
+        c_read = readed;
         trama = 0;
-        c_read = c;
-        state = 3;
       }
-      else if (c == I1)
-      {
+      else if(readed == I1){
+        actualState = C_RCV;
+        c_read = readed;
         trama = 1;
-        c_read = c;
-        state = 3;
       }
+      else if(readed == FLAG)
+        actualState = FLAG_RCV;
       else
-      {
-        if (c == FLAG)
-          state = 1;
-        else
-          state = 0;
-      }
+        actualState = START;    
       break;
-
-    //recebe BCC
-    case 3:
-      if (c == (AR ^ c_read))
-        state = 4;
+    }
+    case C_RCV:{
+      if(readed == (AR ^ c_read))
+        actualState = BCC_OK;
+      else if(readed == FLAG)
+        actualState = FLAG_RCV;
       else
-        state = 0;
+        actualState = START;  
       break;
-
-    //recebe FLAG final
-    case 4:
-      if (c == FLAG)
-      {
+    }
+    case BCC_OK:{
+      if (readed == FLAG){
         if (seeBCC2(message, *size))
         {
           if (trama == 0)
@@ -231,7 +217,7 @@ unsigned char *llread(int fd, int *size) {
           else
             sendControlMessage(fd, RR0);
 
-          state = 6;
+          actualState = STOP;
           mandarDados = TRUE;
           printf("Enviou RR, T: %d\n", trama);
         }
@@ -241,31 +227,28 @@ unsigned char *llread(int fd, int *size) {
             sendControlMessage(fd, REJ1);
           else
             sendControlMessage(fd, REJ0);
-          state = 6;
+          actualState = STOP;
           mandarDados = FALSE;
           printf("Enviou REJ, T: %d\n", trama);
         }
       }
-      else if (c == ESC)
-      {
-        state = 5;
-      }
-      else
-      {
+      else if (readed == ESC)
+        actualState = ESC_STATE;
+      else {
         message = (unsigned char *)realloc(message, ++(*size));
-        message[*size - 1] = c;
+        message[*size - 1] = readed;
       }
       break;
-    case 5:
-      //printf("5state\n");
-      if (c == ESCFLAG)
+    }
+    case ESC_STATE:{
+      if (readed == ESCFLAG)
       {
         message = (unsigned char *)realloc(message, ++(*size));
         message[*size - 1] = FLAG;
       }
       else
       {
-        if (c == ESCESC)
+        if (readed == ESCESC)
         {
           message = (unsigned char *)realloc(message, ++(*size));
           message[*size - 1] = ESC;
@@ -276,10 +259,14 @@ unsigned char *llread(int fd, int *size) {
           exit(-1);
         }
       }
-      state = 4;
+      actualState = BCC_OK;
+      break;
+    }
+    default:
       break;
     }
   }
+
   printf("Message size: %d\n", *size);
   //message tem BCC2 no fim
   message = (unsigned char *)realloc(message, *size - 1);
