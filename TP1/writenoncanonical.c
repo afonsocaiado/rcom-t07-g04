@@ -11,34 +11,43 @@
 #include <signal.h>
 
 #define BAUDRATE B38400
-#define MODEMDEVICE "/dev/ttyS1"
+#define MODEMDEVICE "/dev/ttyS"
 #define _POSIX_SOURCE 1 /* POSIX compliant source */
 #define FALSE 0
 #define TRUE 1
+#define DESLIGAR_ALARME 0
+#define TEMPO_ESPERA 3
+#define MAX_TENTATIVAS 3
 
-//volatile int STOP=FALSE;
+enum A { AC = 0x03 , AR = 0x01 }; // valores possiveis do campo A na trama
+enum State { START, FLAG_RCV, A_RCV, C_RCV, BCC_OK, STOP}; // estados possiveis da maquina de estados usada
+enum C { SET = 0x03, DISC = 0x0b, UA = 0x07, RR0 = 0x05, RR1 = 0x85, REJ0 = 0x01, REJ1 = 0x81 , I0 = 0x00, I1 = 0x40};// valores possiveis do campo C na trama
 
-enum A { AC = 0x03 , AR = 0x01 };
-enum State { START, FLAG_RCV, A_RCV, C_RCV, BCC_OK, STOP};
-enum C { SET = 0x03, DISC = 0x0b, UA = 0x07, RR0 = 0x05, RR1 = 0x85, REJ0 = 0x01, REJ1 = 0x81 , I0 = 0x00, I1 = 0x40};
-
-const unsigned char FLAG = 0x7e;
+const unsigned char FLAG = 0x7e; // flag de inicio e fim de uma trama
 
 int Ns = 0; // numero de sequencia da trama do emisor
 int Nr = 1; // numero de sequencia da trama do receptor
 
-int time_out =FALSE;
+int time_out =FALSE; // flag que indica se ocorreu um time out
 int num_tentativas = 0; // numero de tentativas de restransmissão
 
-void atende()                   // atende alarme
+struct termios oldtio,newtio; //variaveis utilizadas para guardar a configuração da ligação pelo cabo serie
+
+/**
+ * função responsavel por lidar com os SIGALARM 
+ **/
+void atende()
 {
-	printf("alarme\n");
-  time_out = TRUE;
   num_tentativas++;
-  alarm(3);
+  if (num_tentativas<=MAX_TENTATIVAS)
+	  printf("Time Out...%i\n",num_tentativas);
+  time_out = TRUE;
+  alarm(TEMPO_ESPERA);
 }
 
-// altera os valores de Ns e Nr
+/**
+ * altera os valores de Ns e Nr
+ **/
 void changeNSS(){
   if (Ns){
     Ns=0;
@@ -50,95 +59,148 @@ void changeNSS(){
   }
 }
 
-int llwrite(int fd,char * buffer,int length){
-  int trama_length = 6; // tamanho da trama em bytes, não inclui o tamanho dos dados
+/**
+ * converte inteiros para string
+ * @param i inteiro a ser convertido
+ * @param b array de caracteres destino
+ **/ 
+void itoa(int i, char b[]){
+    char const digit[] = "0123456789";
+    char* p = b;
+    if(i<0){
+        *p++ = '-';
+        i *= -1;
+    }
+    int shifter = i;
+    do{ //Move to where representation ends
+        ++p;
+        shifter = shifter/10;
+    }while(shifter);
+    *p = '\0';
+    do{ //Move back, inserting digits as u go
+        *--p = digit[i%10];
+        i = i/10;
+    }while(i);
+}
 
-  char new_buffer[length*2]; //guarda o conteudo de buffer após o mecanismo de byte stuffing 
-  int j=0; // variavel utilizada como indice no array new_buffer
-  
-  char BCC_Dados = 0x00; // 0x00 é o elemento neutro do XOR
-  char temp[2]; // array utilizado quando o BCC é igual a flag ou ao octeto de escape
-  int BCC_Affected = 0; // variavel boleana que indica se o BCC foi afetado pelo byte stuffing
+ /**
+  * mecanismo de byte stuffing 
+  * @param buffer array de caracteres que vai sofrer byte stuffing
+  * @param length tamanho do array buffer
+  * @param new_buffer array que irá receber o conteudo do buffer após o byte stuffing
+  * @param BCC array que contem o(s) valore(s) do parametro BCC que protege os dados 
+  * @return tamanho do new_buffer mais o BCC caso este seja afetado pelo byte stuffing
+  **/
+int byteStuffing(char * buffer,int length,char new_buffer[],char BCC[]){
+  int j=0; // variavel que vai conter o tamanho de new_buffer mais o Bcc, mas também irá funcionar de indice do array new_buffer
 
-  //byte stuffing
+  //byte stuffing do buffer
   for (int i = 0; i < length; i++)
   {
     if (buffer[i] == 0x7e){
-      BCC_Dados = BCC_Dados ^ 0x7e;
+      BCC[0] = BCC[0] ^ 0x7e;
       new_buffer[j] = 0x7d;
       new_buffer[j+1] = 0x5e;
       j += 2;
     }else if (buffer[i] == 0x7d){
-      BCC_Dados = BCC_Dados ^ 0x7d;
+      BCC[0] = BCC[0]^ 0x7d;
       new_buffer[j] = 0x7d;
       new_buffer[j+1] = 0x5d;
       j += 2;
     }else{
-      BCC_Dados = BCC_Dados ^ buffer[i];
+      BCC[0] = BCC[0] ^ buffer[i];
       new_buffer[j] = buffer[i];
       j++;
     }
   }
 
-  trama_length += j;
-  
-  //verificar se o BCC foi afetado pelo byte stuffing
-  if(BCC_Dados == 0x7e){
-    temp[0] = 0x7d;
-    temp[1] = 0x5e;
-    BCC_Affected = 1;
-    trama_length++;
-  }else if (BCC_Dados == 0x7d){
-    temp[0] = 0x7d;
-    temp[1] = 0x5d;
-    BCC_Affected = 1;
-    trama_length++;
+  //verifica se o BCC é afetado pelo byte stuffing
+  if(BCC[0] == 0x7e){
+    BCC[0] = 0x7d;
+    BCC[1] = 0x5e;
+    j++;
+  }else if (BCC[0] == 0x7d){
+    BCC[0] = 0x7d;
+    BCC[1] = 0x5d;
+    j++;
   }
+  return j;
+}
+
+/**
+ * escreve o conteudo do buffer em fd
+ * @param fd identificador da ligação de dados
+ * @param buffer array de caracteres a transmitir
+ * @param length tamanho do array buffer
+ * @return numero de caracteres escritos ou -1 em caso de erro
+ **/
+int llwrite(int fd,char * buffer,int length){
+  int trama_length = 6; // tamanho da trama em bytes, não inclui o tamanho dos dados
+
+  char new_buffer[length*2]; //guarda o conteudo de buffer após o mecanismo de byte stuffing 
+  
+  char BCC_Dados[2]; // array que irá conter os valores de BCC (o array tem tamanho 2 pois o BCC pode ser afetado pelo byte stuffing)
+  BCC_Dados[0] = 0x00; // 0x00 é o elemento neutro do XOR
+  BCC_Dados[1] = 0x00;
+
+  int new_buffer_size = byteStuffing(buffer,length,new_buffer,BCC_Dados);
+  
+  trama_length += new_buffer_size;
 
   char trama[trama_length]; //array que vai guardar a trama a ser enviada pelo emissor
 
-  //comando I a ser enviado pelo emisor
+  //contrução da trama I a ser enviado pelo emisor
   trama[0] = FLAG;
   trama[1] = AC;
   if (Ns)
     trama[2] = I1;
   else
     trama[2] = I0;
-  trama[3] = AC ^ 0x00;
+  trama[3] = AC ^ trama[2];
 
-  for (size_t i = 4,t=0; t < j; i++,t++){
-    trama[i] = new_buffer[t];    
+  for (size_t i = 4,t=0; t < (new_buffer_size-1); i++,t++){
+    trama[i] = new_buffer[t];
   }
   
-  if (BCC_Affected){
-    trama[4+j] = temp[0];
-    trama[5+j] = temp[1];
-    trama[6+j] = FLAG;
+  if (BCC_Dados[1]!=0x00){
+    trama[4+(new_buffer_size-1)] = BCC_Dados[0];
+    trama[5+(new_buffer_size-1)] = BCC_Dados[1];
+    trama[6+(new_buffer_size-1)] = FLAG;
   }else{
-    trama[4+j] = BCC_Dados;
-    trama[5+j] = FLAG;
+    trama[4+(new_buffer_size-1)] = BCC_Dados[0];
+    trama[5+(new_buffer_size-1)] = FLAG;
   }
   
-  write(fd,&trama,trama_length);
-  alarm(3);
+  write(fd,&trama,trama_length); // envia a informação para o receiver
+  printf("Sended: Ns=%i\n",Ns);
+  alarm(TEMPO_ESPERA); // cria um alarme para gerar os time outs
+  
+  unsigned char readed; // variavel que vai guardar a informação envia pelo receiver byte a byte
 
-  unsigned char readed;
+  enum State actualState = START; // estado inicial da maquina de estados
 
-  enum State actualState = START;
+  enum C answer ; // indica qual o tipo de resposta que o receiver enviou
 
-  //aguardar por uma resposta do receptor
+  //aguardar por uma resposta do receiver
   while (actualState != STOP)
   {
-    read(fd,&readed,1);
+    read(fd,&readed,1); // lê um byte da informação enviada pelo receiver
 
-    if (num_tentativas == 4)
+    if (num_tentativas > MAX_TENTATIVAS){ // se excedeu o numero maximo de tentativas
+      //repor os valores standart para não afetar outras funções
+      num_tentativas = 0; 
+      time_out = FALSE;
+      printf("Error llwrite: No answer from receiver.\n");
       return -1;
-
-    if (time_out && actualState== START){
+    }
+    
+    if (time_out){ // se ocorer um time out o sender irá enviar novamente a informação
       write(fd,&trama,trama_length);
+      printf("Sended: Ns=%i\n",Ns);
       time_out = FALSE;
     }
 
+    // maquina de estados que valida a informação recebida 
     switch (actualState)
     {
     case START:{
@@ -154,53 +216,44 @@ int llwrite(int fd,char * buffer,int length){
       break;
     }  
     case A_RCV:{
-      if(Nr){
-        if(readed == RR1 || readed == REJ0)
-          actualState = C_RCV;
-        else if(readed == FLAG)
-          actualState = FLAG_RCV;
-        else
-          actualState = START;    
-      }else{
-        if(readed == RR0 || readed == REJ1)
-          actualState = C_RCV;
-        else if(readed == FLAG)
-          actualState = FLAG_RCV;
-        else
-          actualState = START;    
-      }
+      answer = readed; // coloca o valor de readed em answer para ser utilizada nos estados seguintes
+      if ( (readed == RR1) || (readed == RR0) || (readed == REJ0) || (readed == REJ1) )
+        actualState = C_RCV;
+      else if(readed == FLAG)
+        actualState = FLAG_RCV;
+      else
+        actualState = START; 
       break;
     }
     case C_RCV:{
-      if (Nr){
-        if(readed == (AC ^ RR1))
-          actualState = BCC_OK;
-        else if (readed = (AC ^ REJ0)){
-          write(fd,&trama,trama_length);
-          actualState = START;
-        }
-        else if(readed == FLAG)
-          actualState = FLAG_RCV;
-        else
-          actualState = START;  
-        
-      }else{
-        if(readed == (AC ^ RR0))
-          actualState = BCC_OK;
-        else if (readed = (AC ^ REJ1)){
-          write(fd,&trama,trama_length);
-          actualState = START;
-        }
-        else if(readed == FLAG)
-          actualState = FLAG_RCV;
-        else
-          actualState = START;  
-      }
+      if (readed == (AC^answer))
+        actualState = BCC_OK;
+      else if(readed == FLAG)
+        actualState = FLAG_RCV;
+      else
+        actualState = START;  
       break;
     }
     case BCC_OK:{
-      if (readed == FLAG)
-        actualState = STOP;
+      if (readed == FLAG){
+        if (Nr){
+          if(answer == RR1)
+            actualState = STOP;
+          else if (answer == REJ0){
+            write(fd,&trama,trama_length);
+            printf("Sended: Ns=%i",Ns);
+            actualState = START;
+          }
+        }else{
+          if(answer == RR0)
+            actualState = STOP;
+          else if (answer == REJ1){
+            write(fd,&trama,trama_length);
+            printf("Sended: Ns=%i",Ns);
+            actualState = START;
+          }
+        }
+      }
       else
         actualState = START;
       break;
@@ -209,15 +262,19 @@ int llwrite(int fd,char * buffer,int length){
       break;
     }
   }  
-  
-  alarm(0); //desliga o alarme porque já foi recebida a resposta pretendida
+  printf("Received: Nr=%i\n",Nr);
+  alarm(DESLIGAR_ALARME); //desliga o alarme porque já foi recebida a resposta pretendida
 
   changeNSS(); 
-
+  
   return trama_length;
 }
 
-
+/**
+ * fecha o identificador de ligação de dados 
+ * @param fd identificador da ligação de dados
+ * @return valor 1 em caso de sucesso e -1 caso contrário
+ **/
 int llclose(int fd){
 
   char trama[5]; // array que contém os parametros de uma trama 
@@ -229,26 +286,39 @@ int llclose(int fd){
   trama[3] = AC ^ DISC;
   trama[4] = FLAG;
 
-  write(fd,&trama,sizeof(trama));
-  alarm(3);
+  write(fd,&trama,sizeof(trama)); // envia a trama com o comando DISC para o receiver
+  printf("Sended: DISC\n");
+  alarm(TEMPO_ESPERA); // cria um alarme gera os time outs
 
-  unsigned char readed;
+  unsigned char readed; // guarda a informação da trama recebida pelo receiver byte a byte
 
-  enum State actualState = START;
+  enum State actualState = START; // estado inicial da maquina de estados 
 
   //aguardar por uma respota válida do receptor
   while (actualState != STOP)
   {
-    read(fd,&readed,1);
+    read(fd,&readed,1); // lê um byte da informação recebida
 
-    if (num_tentativas == 4)
+    if (num_tentativas > MAX_TENTATIVAS){ // caso exceda o limite maximo de tentativas
+      //repor os valores standart para não afetar outras funções
+      num_tentativas = 0; 
+      time_out = FALSE;
+      printf("Error llclose: No answer from receiver, closing connection.\n");
+      if ( tcsetattr(fd,TCSANOW,&oldtio) == -1) {
+        perror("tcsetattr");
+        exit(-1);
+      }
+      close(fd);
       return -1;
+    }
 
-    if (time_out && actualState== START){
+    if (time_out){ // se ocorer um time out o sender irá enviar novamente a informação
       write(fd,&trama,sizeof(trama));
+      printf("Sended: DISC\n");
       time_out = FALSE;
     }
-      
+    
+    // maquina de estados que valida a informação recebida 
     switch (actualState)
     {
     case START:{
@@ -292,42 +362,50 @@ int llclose(int fd){
       break;
     }
   }
-  alarm(0);
+  printf("Received: DISC\n");
+  alarm(DESLIGAR_ALARME); // como não ocorreu nenhum erro é necessário desligar o alarme
 
   //resposta ao comando DISC enviado pelo receptor
   trama[1] = AR;
   trama[2] = UA;
   trama[3] = AR ^UA;
 
-  write(fd,&trama,sizeof(trama));
+  write(fd,&trama,sizeof(trama)); // envia a trama com a resposta UA 
+  printf("Sended: UA\n");
+
+  if ( tcsetattr(fd,TCSANOW,&oldtio) == -1) {
+    perror("tcsetattr");
+    exit(-1);
+  }
+  
+  printf("Closing Connection...\n");
+
+  close(fd);
 
   return 1;
 }
 
-int main(int argc, char** argv)
-{
-  int fd,c, res;
-  struct termios oldtio,newtio;
-  char buf[255];
-  int i, sum = 0, speed = 0;
+/**
+ * cria um identificador de ligação de dados
+ * @param  porta porta de comunicação
+ * @return identificador de ligação em caso de sucesso e -1 em caso de erro
+ **/ 
+int llopen(int porta){
+  int fd; // identificador da ligação de dados 
+  char temp[3]; // guarda a porta no tipo string
+  itoa(porta,temp); 
+  char modemDevise [9 + strlen(temp)]; // nome do modem devise p.e /dev/ttyS10
   
-  /*
-  if ( (argc < 2) || 
-        ((strcmp("/dev/ttyS0", argv[1])!=0) && 
-        (strcmp("/dev/ttyS1", argv[1])!=0) )) {
-    printf("Usage:\tnserial SerialPort\n\tex: nserial /dev/ttyS1\n");
-    exit(1);
-  }*/
-
+  //construção do string que contem o path do modem device
+  strcpy(modemDevise,MODEMDEVICE);
+  strcat(modemDevise,temp);
 
   /*
     Open serial port device for reading and writing and not as controlling tty
     because we don't want to get killed if linenoise sends CTRL-C.
   */
-
-
-  fd = open(argv[1], O_RDWR | O_NOCTTY | O_NONBLOCK);
-  if (fd <0) {perror(argv[1]); exit(-1); }
+  fd = open(modemDevise, O_RDWR | O_NOCTTY | O_NONBLOCK);
+  if (fd <0) {perror(modemDevise); exit(-1); }
 
   if ( tcgetattr(fd,&oldtio) == -1) { /* save current port settings */
     perror("tcgetattr");
@@ -359,12 +437,10 @@ int main(int argc, char** argv)
 
   printf("New termios structure set\n");
 
-  (void) signal(SIGALRM, atende);
+  (void) signal(SIGALRM, atende); // redireciona todos os SIGALRM para a função atende
 
-  // comandos: SET, I , DISC  --- resposta: UA, RR, REJ
-  
+  // contrução da trama SET 
   unsigned char BCC = AC ^ SET;
-
   unsigned char buffer[5];
   buffer[0] = FLAG;
   buffer[1]= AC;
@@ -372,26 +448,39 @@ int main(int argc, char** argv)
   buffer[3] = BCC;
   buffer[4] = FLAG;
 
-  write(fd,&buffer,sizeof(buffer));
-  alarm(3);
+  write(fd,&buffer,sizeof(buffer)); // envia a informação para o receiver
+  printf("Sended: SET\n");
+  alarm(TEMPO_ESPERA); // cria um alarm para gerar os time outs
   
-  unsigned char readed;
+  unsigned char readed; // variavel que vai guardando a informação byte a byte da trama recebida
 
-  enum State actualState = START;
+  enum State actualState = START; // estado inical da maquina de estados 
 
   // Logical Connection
   while (actualState != STOP)
   {
-    read(fd,&readed,1);
+    read(fd,&readed,1); //lê um byte da informação recebida
 
-    if (num_tentativas == 4)
+    if (num_tentativas > MAX_TENTATIVAS){ // se excedeu o limite maximo de tentativas
+      //repor os valores standart para não afetar outras funções
+      num_tentativas = 0; 
+      time_out = FALSE;
+      printf("Error llopen: No answer from receiver, closing connection.\n");
+      if ( tcsetattr(fd,TCSANOW,&oldtio) == -1) { 
+        perror("tcsetattr");
+        exit(-1);
+      }
+      close(fd);
       return -1;
-
-    if (time_out && actualState== START){
+    }
+    // envia outra vez a informação de SET caso tenha ocorrido time out 
+    if (time_out){ 
       write(fd,&buffer,sizeof(buffer));
+      printf("Sended: SET\n");
       time_out = FALSE;
     }
-      
+    
+    // maquina de estados que valida a informação recebida 
     switch (actualState)
     {
     case START:{
@@ -435,15 +524,39 @@ int main(int argc, char** argv)
       break;
     }
   }
-  alarm(0); //desliga o alarme porque já foi recebida a resposta pretendida
+  printf("Received: UA\n");
+  alarm(DESLIGAR_ALARME); //desliga o alarme porque já foi recebida a resposta pretendida
   
-  sleep(1);
-  
-  if ( tcsetattr(fd,TCSANOW,&oldtio) == -1) {
-    perror("tcsetattr");
-    exit(-1);
-  }
+  printf("Logical Connection...Done\n");
 
-  close(fd);
+  return fd;
+}
+
+int main(int argc, char** argv)
+{
+  int fd,porta;
+  /*
+  if ( (argc < 2) || 
+        ((strcmp("/dev/ttyS0", argv[1])!=0) && 
+        (strcmp("/dev/ttyS1", argv[1])!=0) )) {
+    printf("Usage:\tnserial SerialPort\n\tex: nserial /dev/ttyS1\n");
+    exit(1);
+  }*/
+  
+  porta = atoi(&argv[1][9]); // numero da porta de comunicação tty
+
+  fd = llopen(porta);
+  return 0;
+  unsigned char BCC = AC ^ SET;
+  char buffer[5];
+  buffer[0] = FLAG;
+  buffer[1]= AC;
+  buffer[2] = SET;
+  buffer[3] = FLAG;
+  buffer[4] = FLAG;
+
+  llwrite(1,buffer,5);
+  return 0;
+  llclose(fd);
   return 0;
 }
