@@ -49,73 +49,9 @@ int seeBCC2(unsigned char *message, int size) {
     return FALSE;
 }
 
-void writeMessage(int fd, unsigned char C) {
-
-    unsigned char buffer[5];
-    buffer[0] = FLAG;
-    buffer[1] = AR;
-    buffer[2] = C;
-    buffer[3] = buffer[1] ^ buffer[2];
-    buffer[4] = FLAG;
-    write(fd, buffer, sizeof(buffer));
-}
-
-int readMessage(int fd, unsigned char C) {
-
-    unsigned char readed;
-    enum State actualState = START;
-
-    // Logical Connection
-    while (actualState != STOP)
-    {
-      read(fd,&readed,1);
-      switch (actualState)
-      {
-      case START:{
-        if (readed == FLAG)
-          actualState = FLAG_RCV;
-        break;
-      }
-      case FLAG_RCV:{
-        if (readed == AR)
-          actualState = A_RCV;
-        else if (readed != FLAG)
-          actualState = START;
-        break;
-      }  
-      case A_RCV:{
-        if(readed == C)
-          actualState = C_RCV;
-        else if(readed == FLAG)
-          actualState = FLAG_RCV;
-        else
-          actualState = START;    
-        break;
-      }
-      case C_RCV:{
-        if(readed == (AR ^ C))
-          actualState = BCC_OK;
-        else if(readed == FLAG)
-          actualState = FLAG_RCV;
-        else
-          actualState = START;  
-        break;
-      }
-      case BCC_OK:{
-        if (readed == FLAG)
-          actualState = STOP;
-        else
-          actualState = START;
-        break;
-      }
-      default:
-        break;
-      }
-    }
-    return TRUE;
-}
-
 void llopen(int fd) {
+
+    int readSetMessage = 0;
 
     if ( tcgetattr(fd,&oldtio) == -1) { /* save current port settings */
       perror("tcgetattr");
@@ -147,9 +83,69 @@ void llopen(int fd) {
 
     printf("New termios structure set\n");
 
-    if (readControlMessage(fd, SET)) {
+    unsigned char readed;
+    enum State actualState = START;
+
+    // Logical Connection
+    while (actualState != STOP)
+    {
+      read(fd,&readed,1);
+      switch (actualState)
+      {
+      case START:{
+        if (readed == FLAG)
+          actualState = FLAG_RCV;
+        break;
+      }
+      case FLAG_RCV:{
+        if (readed == AR)
+          actualState = A_RCV;
+        else if (readed != FLAG)
+          actualState = START;
+        break;
+      }  
+      case A_RCV:{
+        if(readed == SET)
+          actualState = C_RCV;
+        else if(readed == FLAG)
+          actualState = FLAG_RCV;
+        else
+          actualState = START;    
+        break;
+      }
+      case C_RCV:{
+        if(readed == (AR ^ SET))
+          actualState = BCC_OK;
+        else if(readed == FLAG)
+          actualState = FLAG_RCV;
+        else
+          actualState = START;  
+        break;
+      }
+      case BCC_OK:{
+        if (readed == FLAG)
+          actualState = STOP;
+        else
+          actualState = START;
+        break;
+      }
+      default:
+        break;
+      }
+    }
+    readSetMessage = 1;
+
+    if (readSetMessage == 1) {
       printf("Received SET");
-      sendControlMessage(fd, UA);
+
+      unsigned char buffer[5];
+      buffer[0] = FLAG;
+      buffer[1] = AR;
+      buffer[2] = UA;
+      buffer[3] = buffer[1] ^ buffer[2];
+      buffer[4] = FLAG;
+      write(fd, buffer, sizeof(buffer));
+
       printf("Sent UA");
     }
 }
@@ -288,43 +284,7 @@ unsigned char *llread(int fd, int *size) {
 
 void llclose(int fd) {
 
-  readControlMessage(fd, DISC);
-  printf("Recebeu DISC\n");
-  sendControlMessage(fd, DISC);
-  printf("Mandou DISC\n");
-  readControlMessage(fd, UA);
-  printf("Recebeu UA\n");
-  printf("Receiver terminated\n");
-
-  tcsetattr(fd, TCSANOW, &oldtio);
-}
-
-
-// Main function
-int main(int argc, char** argv)
-{
-    int fd,c, res;
-
-    /*
-    if ( (argc < 2) || 
-  	     ((strcmp("/dev/ttyS0", argv[1])!=0) && 
-  	      (strcmp("/dev/ttyS1", argv[1])!=0) )){
-      printf("Usage:\tnserial SerialPort\n\tex: nserial /dev/ttyS1\n");
-      exit(1);
-    }*/
-
-
-  /*
-    Open serial port device for reading and writing and not as controlling tty
-    because we don't want to get killed if linenoise sends CTRL-C.
-  */
-  
-    
-    fd = open(argv[1], O_RDWR | O_NOCTTY );
-    if (fd <0) {perror(argv[1]); exit(-1); }
-
-  
-    // comandos: SET, I , DISC  --- resposta: UA, RR, REJ
+// Wait for disc 
 
     unsigned char readed;
     enum State actualState = START;
@@ -341,14 +301,14 @@ int main(int argc, char** argv)
         break;
       }
       case FLAG_RCV:{
-        if (readed== AR)
+        if (readed == AR)
           actualState = A_RCV;
         else if (readed != FLAG)
           actualState = START;
         break;
       }  
       case A_RCV:{
-        if(readed == SET)
+        if(readed == DISC)
           actualState = C_RCV;
         else if(readed == FLAG)
           actualState = FLAG_RCV;
@@ -357,7 +317,71 @@ int main(int argc, char** argv)
         break;
       }
       case C_RCV:{
-        if(readed == (AR ^ SET))
+        if(readed == (AR ^ DISC))
+          actualState = BCC_OK;
+        else if(readed == FLAG)
+          actualState = FLAG_RCV;
+        else
+          actualState = START;  
+        break;
+      }
+      case BCC_OK:{
+        if (readed == FLAG)
+          actualState = STOP;
+        else
+          actualState = START;
+        break;
+      }
+      default:
+        break;
+      }
+    }
+    printf("Recebeu DISC\n");
+
+// Envia DISC
+    unsigned char buffer[5];
+    buffer[0] = FLAG;
+    buffer[1] = AR;
+    buffer[2] = DISC;
+    buffer[3] = buffer[1] ^ buffer[2];
+    buffer[4] = FLAG;
+    write(fd, buffer, sizeof(buffer));
+
+    printf("Mandou DISC\n");
+
+//Wait for UA
+    unsigned char readed;
+    enum State actualState = START;
+
+    // Logical Connection
+    while (actualState != STOP)
+    {
+      read(fd,&readed,1);
+      switch (actualState)
+      {
+      case START:{
+        if (readed == FLAG)
+          actualState = FLAG_RCV;
+        break;
+      }
+      case FLAG_RCV:{
+        if (readed == AR)
+          actualState = A_RCV;
+        else if (readed != FLAG)
+          actualState = START;
+        break;
+      }  
+      case A_RCV:{
+        if(readed == UA)
+          actualState = C_RCV;
+        else if(readed == FLAG)
+          actualState = FLAG_RCV;
+        else
+          actualState = START;    
+        break;
+      }
+      case C_RCV:{
+        if(readed == (AR ^ UA))
           actualState = BCC_OK;
         else if(readed == FLAG)
           actualState = FLAG_RCV;
@@ -377,16 +401,103 @@ int main(int argc, char** argv)
       }
     }
 
+    printf("Recebeu UA\n");
+    printf("Receiver terminated\n");
+}
 
 
+// Main function
+int main(int argc, char** argv)
+{
+    int fd;
+    int sizeMessage = 0;
+    unsigned char *mensagemPronta;
+    int sizeOfStart = 0;
+    unsigned char *start;
+    off_t sizeOfGiant = 0;
+    unsigned char *giant;
+    off_t index = 0;
 
-  /* 
-    O ciclo WHILE deve ser alterado de modo a respeitar o indicado no gui�o 
+
+    
+    if ( (argc < 2) || 
+  	     ((strcmp("/dev/ttyS0", argv[1])!=0) && 
+  	      (strcmp("/dev/ttyS1", argv[1])!=0) )){
+      printf("Usage:\tnserial SerialPort\n\tex: nserial /dev/ttyS1\n");
+      exit(1);
+    }
+
+
+  /*
+    Open serial port device for reading and writing and not as controlling tty
+    because we don't want to get killed if linenoise sends CTRL-C.
   */
+  
+    
+    fd = open(argv[1], O_RDWR | O_NOCTTY );
+    if (fd <0) {perror(argv[1]); exit(-1); }
 
+  
+    llopen(fd);
+    start = llread(fd, &sizeOfStart);
 
+    int L2 = (int)start[8];
+    unsigned char *name = (unsigned char *)malloc(L2 + 1);
+
+    int i;
+    for (i = 0; i < L2; i++)
+    {
+      name[i] = start[9 + i];
+    }
+
+    name[L2] = '\0';
+    unsigned char *nameOfFile = name;
+
+    sizeOfGiant = (start[3] << 24) | (start[4] << 16) | (start[5] << 8) | (start[6]);
+
+    giant = (unsigned char *)malloc(sizeOfGiant);
+
+    while (TRUE)
+    {
+      mensagemPronta = llread(fd, &sizeMessage);
+      if (sizeMessage == 0)
+        continue;
+      if (isEndMessage(start, sizeOfStart, mensagemPronta, sizeMessage))
+      {
+        printf("End message received\n");
+        break;
+      }
+
+      int sizeWithoutHeader = 0;
+
+      mensagemPronta = removeHeader(mensagemPronta, sizeMessage, &sizeWithoutHeader);
+
+      memcpy(giant + index, mensagemPronta, sizeWithoutHeader);
+      index += sizeWithoutHeader;
+    }
+
+    printf("Mensagem: \n");
+    int i = 0;
+    for (; i < sizeOfGiant; i++)
+    {
+      printf("%x", giant[i]);
+    }
+
+    FILE *file = fopen((char *)nameOfFile, "wb+");
+    fwrite((void *)giant, 1, *nameOfFile, file);
+    printf("%zd\n", sizeOfGiant);
+    printf("New file created\n");
+    fclose(file);
+
+    llclose(fd);
 
     tcsetattr(fd,TCSANOW,&oldtio);
+
+    sleep(1);
+ 
     close(fd);
     return 0;
+
+
+
 }
