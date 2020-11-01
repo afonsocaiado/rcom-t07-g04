@@ -462,6 +462,7 @@ int main(int argc, char** argv)
     off_t sizeOfGiant = 0;
     unsigned char *giant;
     off_t index = 0;
+    int isAtEnd = 0;
 
 
     /*
@@ -507,7 +508,27 @@ int main(int argc, char** argv)
       mensagemPronta = llread(fd, &sizeMessage);
       if (sizeMessage == 0)
         continue;
-      if (isEndMessage(start, sizeOfStart, mensagemPronta, sizeMessage))
+
+      int s = 1;
+      int e = 1;
+      if (sizeOfStart != sizeMessage)
+        return FALSE;
+      else
+      {
+        if (mensagemPronta[0] == 0x03)
+        {
+          for (; s < sizeOfStart; s++, e++)
+          {
+            if (start[s] != mensagemPronta[e])
+              return FALSE;
+          }
+          isAtEnd = 1;
+        }
+        else
+        {
+        }
+      }
+      if (isAtEnd == 1)
       {
         printf("End message received\n");
         break;
@@ -515,7 +536,15 @@ int main(int argc, char** argv)
 
       int sizeWithoutHeader = 0;
 
-      mensagemPronta = removeHeader(mensagemPronta, sizeMessage, &sizeWithoutHeader);
+      int i = 0;
+      int j = 4;
+      unsigned char *messageRemovedHeader = (unsigned char *)malloc(sizeMessage - 4);
+      for (; i < sizeMessage; i++, j++)
+      {
+        messageRemovedHeader[i] = mensagemPronta[j];
+      }
+      sizeWithoutHeader = sizeMessage - 4;
+      mensagemPronta = messageRemovedHeader;
 
       memcpy(giant + index, mensagemPronta, sizeWithoutHeader);
       index += sizeWithoutHeader;
