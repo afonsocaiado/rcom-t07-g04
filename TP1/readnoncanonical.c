@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdlib.h>
+#include <signal.h>
 
 #define BAUDRATE B38400
 #define _POSIX_SOURCE 1 /* POSIX compliant source */
@@ -31,6 +32,18 @@ int num_tentativas = 0;
 
 int esperado = 0;
 struct termios oldtio,newtio;
+
+/**
+ * função responsavel por lidar com os SIGALARM 
+ **/
+void atende()
+{
+  num_tentativas++;
+  if (num_tentativas<=3)
+	  printf("Time Out...%i\n",num_tentativas);
+  time_out = TRUE;
+  alarm(3);
+}
 
 int seeBCC2(unsigned char *message, int size) {
 
@@ -80,6 +93,8 @@ void llopen(int fd) {
       perror("tcsetattr");
       exit(-1);
     }
+
+    (void) signal(SIGALRM, atende); // redireciona todos os SIGALRM para a função atende
 
     printf("New termios structure set\n");
 
@@ -136,7 +151,7 @@ void llopen(int fd) {
     readSetMessage = 1;
 
     if (readSetMessage == 1) {
-      printf("Received SET");
+      printf("Received SET\n");
 
       unsigned char buffer[5];
       buffer[0] = FLAG;
@@ -146,12 +161,23 @@ void llopen(int fd) {
       buffer[4] = FLAG;
       write(fd, buffer, sizeof(buffer));
 
-      printf("Sent UA");
+      printf("Sent UA\n");
     }
 }
 
+void sendControlMessage(int fd, char answer){
+  char buffer[5];
+  buffer[0] = FLAG;
+  buffer[1] = AR;
+  buffer[2] = answer;
+  buffer[3] = AR ^ answer;
+  buffer[4] = FLAG;
+
+  write(fd,&buffer,5);
+}
+
 unsigned char *llread(int fd, int *size) {
-  unsigned char *message = (unsigned char *)malloc(0);
+  unsigned char *message = (unsigned char *)malloc(1);
   *size = 0;
   unsigned char c_read;
   int trama = 0;
@@ -160,7 +186,6 @@ unsigned char *llread(int fd, int *size) {
   unsigned char readed;
   enum State actualState = START;
 
-  // Logical Connection
   while (actualState != STOP)
   {
     read(fd,&readed,1);
@@ -341,22 +366,42 @@ void llclose(int fd) {
 // Envia DISC
     unsigned char buffer[5];
     buffer[0] = FLAG;
-    buffer[1] = AR;
+    buffer[1] = AC;
     buffer[2] = DISC;
     buffer[3] = buffer[1] ^ buffer[2];
     buffer[4] = FLAG;
     write(fd, buffer, sizeof(buffer));
+    alarm(3);
 
     printf("Mandou DISC\n");
 
 //Wait for UA
-    unsigned char readed;
-    enum State actualState = START;
+    actualState = START;
 
     // Logical Connection
     while (actualState != STOP)
     {
       read(fd,&readed,1);
+
+      if (num_tentativas > 3){ // se excedeu o limite maximo de tentativas
+        //repor os valores standart para não afetar outras funções
+        num_tentativas = 0; 
+        time_out = FALSE;
+        printf("Error llclose: No answer from sender, closing connection.\n");
+        if ( tcsetattr(fd,TCSANOW,&oldtio) == -1) { 
+          perror("tcsetattr");
+          exit(-1);
+        }
+        close(fd);
+        return -1;
+      }
+      // envia outra vez a informação de DISC caso tenha ocorrido time out 
+      if (time_out){ 
+        write(fd,&buffer,sizeof(buffer));
+        printf("Sended: DISC\n");
+        time_out = FALSE;
+      }
+
       switch (actualState)
       {
       case START:{
@@ -365,7 +410,7 @@ void llclose(int fd) {
         break;
       }
       case FLAG_RCV:{
-        if (readed == AR)
+        if (readed == AC)
           actualState = A_RCV;
         else if (readed != FLAG)
           actualState = START;
@@ -381,7 +426,7 @@ void llclose(int fd) {
         break;
       }
       case C_RCV:{
-        if(readed == (AR ^ UA))
+        if(readed == (AC ^ UA))
           actualState = BCC_OK;
         else if(readed == FLAG)
           actualState = FLAG_RCV;
@@ -419,13 +464,13 @@ int main(int argc, char** argv)
     off_t index = 0;
 
 
-    
+    /*
     if ( (argc < 2) || 
   	     ((strcmp("/dev/ttyS0", argv[1])!=0) && 
   	      (strcmp("/dev/ttyS1", argv[1])!=0) )){
       printf("Usage:\tnserial SerialPort\n\tex: nserial /dev/ttyS1\n");
       exit(1);
-    }
+    }*/
 
 
   /*
@@ -437,8 +482,8 @@ int main(int argc, char** argv)
     fd = open(argv[1], O_RDWR | O_NOCTTY );
     if (fd <0) {perror(argv[1]); exit(-1); }
 
-  
     llopen(fd);
+  
     start = llread(fd, &sizeOfStart);
 
     int L2 = (int)start[8];
@@ -477,7 +522,7 @@ int main(int argc, char** argv)
     }
 
     printf("Mensagem: \n");
-    int i = 0;
+    i = 0;
     for (; i < sizeOfGiant; i++)
     {
       printf("%x", giant[i]);

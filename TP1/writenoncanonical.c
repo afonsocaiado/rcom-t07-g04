@@ -118,11 +118,9 @@ int byteStuffing(char * buffer,int length,char new_buffer[],char BCC[]){
   if(BCC[0] == 0x7e){
     BCC[0] = 0x7d;
     BCC[1] = 0x5e;
-    j++;
   }else if (BCC[0] == 0x7d){
     BCC[0] = 0x7d;
     BCC[1] = 0x5d;
-    j++;
   }
   return j;
 }
@@ -144,8 +142,11 @@ int llwrite(int fd,char * buffer,int length){
   BCC_Dados[1] = 0x00;
 
   int new_buffer_size = byteStuffing(buffer,length,new_buffer,BCC_Dados);
-  
   trama_length += new_buffer_size;
+
+  if (BCC_Dados[1]!=0x00){ // se o BCC foi afetado pelo byte stuffing então o tamanho dele aumenta em um byte
+    trama_length++;
+  }
 
   char trama[trama_length]; //array que vai guardar a trama a ser enviada pelo emissor
 
@@ -158,17 +159,18 @@ int llwrite(int fd,char * buffer,int length){
     trama[2] = I0;
   trama[3] = AC ^ trama[2];
 
-  for (size_t i = 4,t=0; t < (new_buffer_size-1); i++,t++){
+  for (int i = 4,t=0; t < new_buffer_size; i++,t++){
     trama[i] = new_buffer[t];
   }
   
+  // se o BCC foi afetado pelo byte stuffing então é necessário colocar os dois bytes dele na trama
   if (BCC_Dados[1]!=0x00){
-    trama[4+(new_buffer_size-1)] = BCC_Dados[0];
-    trama[5+(new_buffer_size-1)] = BCC_Dados[1];
-    trama[6+(new_buffer_size-1)] = FLAG;
+    trama[4+new_buffer_size] = BCC_Dados[0];
+    trama[5+new_buffer_size] = BCC_Dados[1];
+    trama[6+new_buffer_size] = FLAG;
   }else{
-    trama[4+(new_buffer_size-1)] = BCC_Dados[0];
-    trama[5+(new_buffer_size-1)] = FLAG;
+    trama[4+new_buffer_size] = BCC_Dados[0];
+    trama[5+new_buffer_size] = FLAG;
   }
   
   write(fd,&trama,trama_length); // envia a informação para o receiver
@@ -546,7 +548,7 @@ int main(int argc, char** argv)
   porta = atoi(&argv[1][9]); // numero da porta de comunicação tty
 
   fd = llopen(porta);
-  return 0;
+
   unsigned char BCC = AC ^ SET;
   char buffer[5];
   buffer[0] = FLAG;
@@ -555,8 +557,8 @@ int main(int argc, char** argv)
   buffer[3] = FLAG;
   buffer[4] = FLAG;
 
-  llwrite(1,buffer,5);
-  return 0;
+  llwrite(fd,buffer,5);
+
   llclose(fd);
   return 0;
 }
