@@ -533,32 +533,3 @@ int llopen(int porta){
 
   return fd;
 }
-
-int main(int argc, char** argv)
-{
-  int fd,porta;
-  /*
-  if ( (argc < 2) || 
-        ((strcmp("/dev/ttyS0", argv[1])!=0) && 
-        (strcmp("/dev/ttyS1", argv[1])!=0) )) {
-    printf("Usage:\tnserial SerialPort\n\tex: nserial /dev/ttyS1\n");
-    exit(1);
-  }*/
-  
-  porta = atoi(&argv[1][9]); // numero da porta de comunicação tty
-
-  fd = llopen(porta);
-
-  unsigned char BCC = AC ^ SET;
-  char buffer[5];
-  buffer[0] = FLAG;
-  buffer[1]= AC;
-  buffer[2] = SET;
-  buffer[3] = FLAG;
-  buffer[4] = FLAG;
-
-  llwrite(fd,buffer,5);
-
-  llclose(fd);
-  return 0;
-}

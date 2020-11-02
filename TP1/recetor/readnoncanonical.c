@@ -453,7 +453,7 @@ void llclose(int fd) {
           exit(-1);
         }
         close(fd);
-        return -1;
+        exit(-1);
       }
       // envia outra vez a informação de DISC caso tenha ocorrido time out 
       if (time_out){ 
@@ -546,22 +546,27 @@ int main(int argc, char** argv)
   
     start = llread(fd, &sizeOfStart);
 
-    // codigo que obtem o nome do ficheiro a partir da trama START
-    int L2 = (int)start[8];
-    unsigned char *name = (unsigned char *)malloc(L2 + 1);
 
-    int i;
-    for (i = 0; i < L2; i++)
+    //recolher a informação do tamanho do ficheiro
+    int num_blocos_tamanho = start[2];
+    char tamanho_str[num_blocos_tamanho];
+    for (size_t i = 0; i < num_blocos_tamanho; i++)
     {
-      name[i] = start[9 + i];
+      tamanho_str[i] = start[3+i];
     }
+    int tamanho_int = atoi(tamanho_str);
 
-    name[L2] = '\0';
-    unsigned char *nameOfFile = name;
+    //recolher a informação do nome do ficheiro
+    int num_blocos_nome = start[3+num_blocos_tamanho+1];
+    char nome_ficheiro[num_blocos_nome+1];
+    for (size_t i = 0; i < num_blocos_nome; i++)
+    {
+      nome_ficheiro[i] = start[5 + num_blocos_tamanho + i];
+    }
+    nome_ficheiro[num_blocos_nome]= '\0';
+ 
 
-    sizeOfGiant = (start[3] << 24) | (start[4] << 16) | (start[5] << 8) | (start[6]); // tamanho do ficheiro a partir da trama START
-
-    giant = (unsigned char *)malloc(sizeOfGiant);
+    giant = (unsigned char *)malloc(tamanho_int);
 
     while (TRUE)
     {
@@ -594,16 +599,16 @@ int main(int argc, char** argv)
 
     // imprime mensagem apos leitura de todas as tramas
     printf("Mensagem: \n");
-    i = 0;
-    for (; i < sizeOfGiant; i++)
+    int i = 0;
+    for (; i < tamanho_int; i++)
     {
       printf("%x", giant[i]);
     }
 
     // cria ficheiro com os dados das tramas de informacao recebidas
-    FILE *file = fopen((char *)nameOfFile, "wb+");
-    fwrite((void *)giant, 1, *nameOfFile, file);
-    printf("%zd\n", sizeOfGiant);
+    FILE *file = fopen(nome_ficheiro, "wb+");
+    fwrite((void *)giant, 1, tamanho_int, file);
+    printf("%d\n", tamanho_int);
     printf("New file created\n");
     fclose(file);
 
