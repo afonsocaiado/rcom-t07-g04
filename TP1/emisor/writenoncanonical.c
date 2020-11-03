@@ -16,7 +16,7 @@
 #define FALSE 0
 #define TRUE 1
 #define DESLIGAR_ALARME 0
-#define TEMPO_ESPERA 3
+#define TEMPO_ESPERA 10
 #define MAX_TENTATIVAS 3
 
 enum A { AC = 0x03 , AR = 0x01 }; // valores possiveis do campo A na trama
@@ -242,16 +242,20 @@ int llwrite(int fd,char * buffer,int length){
           if(answer == RR1)
             actualState = STOP;
           else if (answer == REJ0){
+            num_tentativas = 0; //repor o numero de tentativas 
+            printf("Received: REJ0\n");
             write(fd,&trama,trama_length);
-            printf("Sended: Ns=%i",Ns);
+            printf("Sended: Ns=%i\n",Ns);
             actualState = START;
           }
         }else{
           if(answer == RR0)
             actualState = STOP;
           else if (answer == REJ1){
+            num_tentativas = 0; //repor o numero de tentativas 
+            printf("Received: REJ1\n");
             write(fd,&trama,trama_length);
-            printf("Sended: Ns=%i",Ns);
+            printf("Sended: Ns=%i\n",Ns);
             actualState = START;
           }
         }
@@ -265,6 +269,8 @@ int llwrite(int fd,char * buffer,int length){
     }
   }  
   printf("Received: Nr=%i\n",Nr);
+  //repor o numero de tentativas para não afetar outras funções;
+  num_tentativas = 0;
   alarm(DESLIGAR_ALARME); //desliga o alarme porque já foi recebida a resposta pretendida
 
   changeNSS(); 
@@ -526,6 +532,8 @@ int llopen(int porta){
       break;
     }
   }
+  //repor o numero de tentativas para não afetar outras funções;
+  num_tentativas = 0;
   printf("Received: UA\n");
   alarm(DESLIGAR_ALARME); //desliga o alarme porque já foi recebida a resposta pretendida
   

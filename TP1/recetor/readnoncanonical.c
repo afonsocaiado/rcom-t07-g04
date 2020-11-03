@@ -228,19 +228,19 @@ void sendControlMessage(int fd, char answer){
 /**
 * funcao que le as tramas de informacao e faz destuffing
 * @param fd identificador da ligacao de dados
-* @param size tamanho da mensagem recebida
-* @return retorna a mensagem recebida
+* @param buffer array que irá receber a informação transmitida pelo emisor
+* @return retorna o numero de bytes recebidos 
 **/
-unsigned char *llread(int fd, int *size) {
-  unsigned char *message = (unsigned char *)malloc(1); // aloca espaco de memoria para a mensagem a receber
-  *size = 0;
+int llread(int fd,unsigned char** buffer) {
+  unsigned char *message = *buffer;
+  message = (unsigned char *)malloc(0); // aloca espaco de memoria para a mensagem a receber
+  int size = 0;
   unsigned char c_read; // variavel para guardar o byte do campo de controlo
   int trama = 0; // variavel que varia consoante o valor de N(s) recebido
   int mandarDados = FALSE; // variavel que esta a TRUE quando o BCC foi corretamente recebido no final da trama
 
   unsigned char readed; // variavel que guarda a informacao recebida byte a byte
   enum State actualState = START; // estado inicial da maquina de estados
-
   while (actualState != STOP)
   {
     read(fd,&readed,1); //le um byte da informacao recebida
@@ -286,7 +286,7 @@ unsigned char *llread(int fd, int *size) {
     }
     case BCC_OK:{
       if (readed == FLAG){ // se recebe FLAG final
-        if (seeBCC2(message, *size)) // se o BCC recebido esta correto
+        if (seeBCC2(message, size)) // se o BCC recebido esta correto
         {
           if (trama == 0) // se N(s) foi 0
             sendControlMessage(fd, RR1); // responde ao emissor com confirmacao positiva e com N(r) = 1
@@ -300,9 +300,9 @@ unsigned char *llread(int fd, int *size) {
         else // // se o BCC recebido nao esta
         {
           if (trama == 0) // se N(s) foi 0
-            sendControlMessage(fd, REJ1); // responde ao emissor com confirmacao negativa e com N(r) = 1
+            sendControlMessage(fd, REJ0); // responde ao emissor com confirmacao negativa e com N(r) = 1
           else // se N(s) foi 1
-            sendControlMessage(fd, REJ0); // responde ao emissor com confirmacao negativa e com N(r) = 0
+            sendControlMessage(fd, REJ1); // responde ao emissor com confirmacao negativa e com N(r) = 0
           actualState = STOP;
           mandarDados = FALSE;
           printf("Enviou REJ, T: %d\n", trama);
@@ -311,23 +311,23 @@ unsigned char *llread(int fd, int *size) {
       else if (readed == ESC) // se recebe o octeto de escape
         actualState = ESC_STATE;
       else { 
-        message = (unsigned char *)realloc(message, ++(*size)); 
-        message[*size - 1] = readed;
+        message = (unsigned char *)realloc(message, ++(size)); 
+        message[size - 1] = readed;
       }
       break;
     }
     case ESC_STATE:{ // recebeu octeto de escape
       if (readed == ESCFLAG) // se apos o octeto de escape, a sequencia se seguir com 0x5e
       {
-        message = (unsigned char *)realloc(message, ++(*size));
-        message[*size - 1] = FLAG;
+        message = (unsigned char *)realloc(message, ++(size));
+        message[size - 1] = FLAG;
       }
       else
       {
         if (readed == ESCESC) // se apos o octeto de escape, a sequencia se seguir com 0x5d
         {
-          message = (unsigned char *)realloc(message, ++(*size));
-          message[*size - 1] = ESC;
+          message = (unsigned char *)realloc(message, ++(size));
+          message[size - 1] = ESC;
         }
         else // neste caso a sequencia apos o octeto de escape nao e valida
         {
@@ -343,11 +343,10 @@ unsigned char *llread(int fd, int *size) {
     }
   }
 
-  printf("Message size: %d\n", *size);
+  printf("Message size: %d\n", size);
   //message tem BCC2 no fim
-  message = (unsigned char *)realloc(message, *size - 1);
-
-  *size = *size - 1;
+  message = (unsigned char *)realloc(message, size - 1);
+  size = size - 1;
   if (mandarDados) // se o BCC foi valido
   {
     if (trama == esperado)
@@ -355,11 +354,13 @@ unsigned char *llread(int fd, int *size) {
       esperado ^= 1;
     }
     else
-      *size = 0;
+      size = 0;
   }
   else
-    *size = 0;
-  return message;
+    size = 0;
+
+  *buffer = message;
+  return size;
 }
 
 /**
@@ -519,10 +520,6 @@ int main(int argc, char** argv)
     int sizeMessage = 0; // tamanho da trama
     int sizeOfStart = 0; // tamanho da trama START
     unsigned char *start; // variavel que guarda a trama START
-    unsigned char *giant; // variavel que guarda os dados de todas as tramas de informacao recebidas
-    off_t sizeOfGiant = 0; // tamanho da variavel giant
-    off_t index = 0; // variavel auxiliar para ajudar a colocar cada trama no local correto de giant
-
 
     /*
     if ( (argc < 2) || 
@@ -537,16 +534,13 @@ int main(int argc, char** argv)
     Open serial port device for reading and writing and not as controlling tty
     because we don't want to get killed if linenoise sends CTRL-C.
   */
-  
-    
     fd = open(argv[1], O_RDWR | O_NOCTTY );
     if (fd <0) {perror(argv[1]); exit(-1); }
 
     llopen(fd);
   
-    start = llread(fd, &sizeOfStart);
-
-
+    sizeOfStart = llread(fd, &start); // lê o pacote de controlo START
+  
     //recolher a informação do tamanho do ficheiro
     int num_blocos_tamanho = start[2];
     char tamanho_str[num_blocos_tamanho];
@@ -565,12 +559,14 @@ int main(int argc, char** argv)
     }
     nome_ficheiro[num_blocos_nome]= '\0';
  
+    // cria ficheiro com os dados das tramas de informacao recebidas
+    FILE *file = fopen(nome_ficheiro, "wb+");
 
-    giant = (unsigned char *)malloc(tamanho_int);
-
+    //enquanto houver informação para ler
     while (TRUE)
     {
-      mensagemPronta = llread(fd, &sizeMessage); 
+      sizeMessage = llread(fd, &mensagemPronta); //lê de fd um pacote de informação 
+   
       if (sizeMessage == 0)
         continue;
 
@@ -580,44 +576,40 @@ int main(int argc, char** argv)
         break;
       }
 
-      int sizeWithoutHeader = 0;
+      int sizeWithoutHeader = 0; //guarda o tamanho do pacote de dados sem o cabeçalho 
+      sizeWithoutHeader = sizeMessage - 4;
 
       // remove o cabeçalho do nível de aplicação das tramas de informacao
       int i = 0;
       int j = 4;
-      unsigned char *messageRemovedHeader = (unsigned char *)malloc(sizeMessage - 4);
+      unsigned char messageRemovedHeader[sizeWithoutHeader]; //array que vai guardar os dados recebidos
       for (; i < sizeMessage; i++, j++)
       {
         messageRemovedHeader[i] = mensagemPronta[j];
       }
-      sizeWithoutHeader = sizeMessage - 4;
-      mensagemPronta = messageRemovedHeader; // mensagem recebida totalmente tratada
 
-      memcpy(giant + index, mensagemPronta, sizeWithoutHeader); // copia a mensagem para giant
-      index += sizeWithoutHeader;
+      //liberta a memoria que o pacote de dados lido está a ocupar
+      free(mensagemPronta);
+      
+      //escreve no ficheiro file os dados recebidos 
+      fwrite(messageRemovedHeader, 1, sizeWithoutHeader, file);
     }
 
-    // imprime mensagem apos leitura de todas as tramas
-    printf("Mensagem: \n");
-    int i = 0;
-    for (; i < tamanho_int; i++)
-    {
-      printf("%x", giant[i]);
-    }
-
-    // cria ficheiro com os dados das tramas de informacao recebidas
-    FILE *file = fopen(nome_ficheiro, "wb+");
-    fwrite((void *)giant, 1, tamanho_int, file);
     printf("%d\n", tamanho_int);
-    printf("New file created\n");
+    
+    //fecha o ficheiro escrito
     fclose(file);
 
+    //liberta a memoria ocupada pelo pacote de controlo START
+    free(start);
+
+    //fecha a ligação com a porta série 
     llclose(fd);
 
     tcsetattr(fd,TCSANOW,&oldtio);
 
     sleep(1);
- 
+
     close(fd);
     return 0;
 
