@@ -6,6 +6,8 @@
 
 enum T { TAMANHO = 0 , NOME = 1};
 
+int trama_size = 10;  //tamanho default de envio da trama é 10 bytes
+
 int main(int argc, char** argv)
 {
     int fd, porta , num_sequencia = 0;
@@ -24,6 +26,12 @@ int main(int argc, char** argv)
     exit(1);
     }*/
 
+    if(argc == 4){
+        trama_size = atoi(argv[3]);
+    }
+
+    printf("%i\n",trama_size);
+
     porta = atoi(&argv[1][9]); // numero da porta de comunicação tty
     
     fd = llopen(porta);
@@ -31,7 +39,7 @@ int main(int argc, char** argv)
     // verificar se a porta serie foi aberta com sucesso
     if (fd == -1)
         exit(-1);
-    
+
     //abre o ficheiro para leitura 
     ficheiro = fopen(nome_ficheiro,"r");
 
@@ -75,8 +83,8 @@ int main(int argc, char** argv)
         
         //envio de dados
 
-        char buffer[5];
-        int bytesLidos = fread(buffer,1,5,ficheiro);
+        char buffer[trama_size];
+        int bytesLidos = fread(buffer,1,trama_size,ficheiro);
         while (bytesLidos > 0){ //enquanto houver dados para enviar
             //construção do pacote de dados
             dados[0] = DADOS;
@@ -98,7 +106,7 @@ int main(int argc, char** argv)
             
             num_sequencia++; //incrementar o numero de sequência
             
-            bytesLidos = fread(buffer,1,5,ficheiro);
+            bytesLidos = fread(buffer,1,trama_size,ficheiro);
                         
         } 
         
