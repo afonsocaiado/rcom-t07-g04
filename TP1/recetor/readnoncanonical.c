@@ -233,7 +233,6 @@ void sendControlMessage(int fd, char answer){
 **/
 int llread(int fd,unsigned char** buffer) {
   unsigned char *message = *buffer;
-  message = (unsigned char *)malloc(0); // aloca espaco de memoria para a mensagem a receber
   int size = 0;
   unsigned char c_read; // variavel para guardar o byte do campo de controlo
   int trama = 0; // variavel que varia consoante o valor de N(s) recebido
@@ -311,7 +310,7 @@ int llread(int fd,unsigned char** buffer) {
       else if (readed == ESC) // se recebe o octeto de escape
         actualState = ESC_STATE;
       else { 
-        message = (unsigned char *)realloc(message, ++(size)); 
+        
         message[size - 1] = readed;
       }
       break;
@@ -319,14 +318,14 @@ int llread(int fd,unsigned char** buffer) {
     case ESC_STATE:{ // recebeu octeto de escape
       if (readed == ESCFLAG) // se apos o octeto de escape, a sequencia se seguir com 0x5e
       {
-        message = (unsigned char *)realloc(message, ++(size));
+        
         message[size - 1] = FLAG;
       }
       else
       {
         if (readed == ESCESC) // se apos o octeto de escape, a sequencia se seguir com 0x5d
         {
-          message = (unsigned char *)realloc(message, ++(size));
+          
           message[size - 1] = ESC;
         }
         else // neste caso a sequencia apos o octeto de escape nao e valida
@@ -345,7 +344,6 @@ int llread(int fd,unsigned char** buffer) {
 
   printf("Message size: %d\n", size);
   //message tem BCC2 no fim
-  message = (unsigned char *)realloc(message, size - 1);
   size = size - 1;
   if (mandarDados) // se o BCC foi valido
   {
@@ -516,7 +514,7 @@ void llclose(int fd) {
 int main(int argc, char** argv)
 {
     int fd; // descritor da ligacao de dados
-    unsigned char *mensagemPronta; // variavel onde cada trama vai ser guardada
+    unsigned char *mensagemPronta[64000]; // variavel onde cada trama vai ser guardada
     int sizeMessage = 0; // tamanho da trama
     int sizeOfStart = 0; // tamanho da trama START
     unsigned char *start; // variavel que guarda a trama START
