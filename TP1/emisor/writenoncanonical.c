@@ -16,7 +16,7 @@
 #define FALSE 0
 #define TRUE 1
 #define DESLIGAR_ALARME 0
-#define TEMPO_ESPERA 10
+#define TEMPO_ESPERA 3
 #define MAX_TENTATIVAS 3
 
 enum A { AC = 0x03 , AR = 0x01 }; // valores possiveis do campo A na trama

@@ -89,8 +89,8 @@ int main(int argc, char** argv)
             //construção do pacote de dados
             dados[0] = DADOS;
             dados[1] = num_sequencia;
-            dados[2] = 5;
-            dados[3] = 0;
+            dados[2] = trama_size/255;
+            dados[3] = trama_size%255;
 
             dados = (char * )realloc(dados,tamanho_dados + bytesLidos); //adiciona mais espaço ao array para poder guardar a informação do ficheiro
 
