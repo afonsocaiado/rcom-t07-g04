@@ -46,29 +46,6 @@ void atende()
 }
 
 /**
- * verifica se o BCC recebido está correto
- * @param message mensagem recebida
- * @param size tamanho da mensagem
- * @return TRUE em caso de sucesso, FALSE caso contrario
- **/
-int seeBCC2(unsigned char *message, int size) {
-
-  int i = 1;
-  unsigned char BCC2 = message[0];
-
-  for (; i < size - 1; i++)
-  {
-    BCC2 ^= message[i];
-  }
-  if (BCC2 == message[size - 1])
-  {
-    return TRUE;
-  }
-  else
-    return FALSE;
-}
-
-/**
  * funcao que verifica se a trama recebida é a trama END
  * @param start trama START recebida anteriormente
  * @param sizeStart tamanho da trama START
@@ -231,15 +208,16 @@ void sendControlMessage(int fd, char answer){
 * @param buffer array que irá receber a informação transmitida pelo emisor
 * @return retorna o numero de bytes recebidos 
 **/
-int llread(int fd,unsigned char** buffer) {
-  unsigned char *message = *buffer;
-  int size = 0;
+int llread(int fd,unsigned char * message) {
+  int size = 0; //tamanho da mensagem que está a ser recebida
   unsigned char c_read; // variavel para guardar o byte do campo de controlo
   int trama = 0; // variavel que varia consoante o valor de N(s) recebido
   int mandarDados = FALSE; // variavel que esta a TRUE quando o BCC foi corretamente recebido no final da trama
+  char BCC_DADOS = 0x00; // 0x00 é o elemento neutro do XOR
 
   unsigned char readed; // variavel que guarda a informacao recebida byte a byte
   enum State actualState = START; // estado inicial da maquina de estados
+
   while (actualState != STOP)
   {
     read(fd,&readed,1); //le um byte da informacao recebida
@@ -285,7 +263,7 @@ int llread(int fd,unsigned char** buffer) {
     }
     case BCC_OK:{
       if (readed == FLAG){ // se recebe FLAG final
-        if (seeBCC2(message, size)) // se o BCC recebido esta correto
+        if (BCC_DADOS == 0x00) // se o BCC recebido esta correto
         {
           if (trama == 0) // se N(s) foi 0
             sendControlMessage(fd, RR1); // responde ao emissor com confirmacao positiva e com N(r) = 1
@@ -310,23 +288,26 @@ int llread(int fd,unsigned char** buffer) {
       else if (readed == ESC) // se recebe o octeto de escape
         actualState = ESC_STATE;
       else { 
-        
-        message[size - 1] = readed;
+        BCC_DADOS = BCC_DADOS ^ readed;
+        message[size] = readed;
+        size++;
       }
       break;
     }
     case ESC_STATE:{ // recebeu octeto de escape
       if (readed == ESCFLAG) // se apos o octeto de escape, a sequencia se seguir com 0x5e
-      {
-        
-        message[size - 1] = FLAG;
+      { 
+        BCC_DADOS = BCC_DADOS ^ FLAG;
+        message[size] = FLAG;
+        size++;
       }
       else
       {
         if (readed == ESCESC) // se apos o octeto de escape, a sequencia se seguir com 0x5d
         {
-          
-          message[size - 1] = ESC;
+          BCC_DADOS = BCC_DADOS ^ ESC;
+          message[size] = ESC;
+          size++;
         }
         else // neste caso a sequencia apos o octeto de escape nao e valida
         {
@@ -342,7 +323,7 @@ int llread(int fd,unsigned char** buffer) {
     }
   }
 
-  printf("Message size: %d\n", size);
+  printf("Message size: %d\n", size-1);
   //message tem BCC2 no fim
   size = size - 1;
   if (mandarDados) // se o BCC foi valido
@@ -357,7 +338,6 @@ int llread(int fd,unsigned char** buffer) {
   else
     size = 0;
 
-  *buffer = message;
   return size;
 }
 
@@ -514,10 +494,10 @@ void llclose(int fd) {
 int main(int argc, char** argv)
 {
     int fd; // descritor da ligacao de dados
-    unsigned char *mensagemPronta[64000]; // variavel onde cada trama vai ser guardada
+    unsigned char mensagemPronta[64005]; // variavel onde cada trama vai ser guardada
     int sizeMessage = 0; // tamanho da trama
     int sizeOfStart = 0; // tamanho da trama START
-    unsigned char *start; // variavel que guarda a trama START
+    unsigned char start[100]; // variavel que guarda a trama START
 
     /*
     if ( (argc < 2) || 
@@ -532,12 +512,12 @@ int main(int argc, char** argv)
     Open serial port device for reading and writing and not as controlling tty
     because we don't want to get killed if linenoise sends CTRL-C.
   */
-    fd = open(argv[1], O_RDWR | O_NOCTTY );
+    fd = open(argv[1], O_RDWR | O_NOCTTY);
     if (fd <0) {perror(argv[1]); exit(-1); }
 
     llopen(fd);
   
-    sizeOfStart = llread(fd, &start); // lê o pacote de controlo START
+    sizeOfStart = llread(fd, start); // lê o pacote de controlo START
   
     //recolher a informação do tamanho do ficheiro
     int num_blocos_tamanho = start[2];
@@ -563,8 +543,8 @@ int main(int argc, char** argv)
     //enquanto houver informação para ler
     while (TRUE)
     {
-      sizeMessage = llread(fd, &mensagemPronta); //lê de fd um pacote de informação 
-   
+      sizeMessage = llread(fd, mensagemPronta); //lê de fd um pacote de informação 
+
       if (sizeMessage == 0)
         continue;
 
@@ -585,9 +565,6 @@ int main(int argc, char** argv)
       {
         messageRemovedHeader[i] = mensagemPronta[j];
       }
-
-      //liberta a memoria que o pacote de dados lido está a ocupar
-      free(mensagemPronta);
       
       //escreve no ficheiro file os dados recebidos 
       fwrite(messageRemovedHeader, 1, sizeWithoutHeader, file);
@@ -598,8 +575,6 @@ int main(int argc, char** argv)
     //fecha o ficheiro escrito
     fclose(file);
 
-    //liberta a memoria ocupada pelo pacote de controlo START
-    free(start);
 
     //fecha a ligação com a porta série 
     llclose(fd);

@@ -28,9 +28,11 @@ int main(int argc, char** argv)
 
     if(argc == 4){
         trama_size = atoi(argv[3]);
+        if (trama_size > 64000){
+            printf("Frame size exceeded!\n");
+            exit(-1);
+        }
     }
-
-    printf("%i\n",trama_size);
 
     porta = atoi(&argv[1][9]); // numero da porta de comunicação tty
     
@@ -85,12 +87,12 @@ int main(int argc, char** argv)
 
         char buffer[trama_size];
         int bytesLidos = fread(buffer,1,trama_size,ficheiro);
+        dados[0] = DADOS;
         while (bytesLidos > 0){ //enquanto houver dados para enviar
             //construção do pacote de dados
-            dados[0] = DADOS;
             dados[1] = num_sequencia;
-            dados[2] = trama_size/255;
-            dados[3] = trama_size%255;
+            dados[2] = bytesLidos/255;
+            dados[3] = bytesLidos%255;
 
             dados = (char * )realloc(dados,tamanho_dados + bytesLidos); //adiciona mais espaço ao array para poder guardar a informação do ficheiro
 
