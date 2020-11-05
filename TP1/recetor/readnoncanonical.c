@@ -27,23 +27,8 @@ enum C { SET = 0x03, UA = 0x07, DISC = 0x0b, I0 = 0x00, I1 = 0x40, RR0 = 0x05, R
 
 const unsigned char FLAG = 0x7e; // flag de inicio e fim de uma trama
 
-int time_out =FALSE; // flag que indica se ocorreu um time out
-int num_tentativas = 0; // numero de tentativas de restransmissao
-
 int esperado = 0;
 struct termios oldtio,newtio; //variaveis utilizadas para guardar a configuracao da ligacao pelo cabo serie
-
-/**
- * função responsavel por lidar com os SIGALARM 
- **/
-void atende()
-{
-  num_tentativas++;
-  if (num_tentativas<=3)
-	  printf("Time Out...%i\n",num_tentativas);
-  time_out = TRUE;
-  alarm(3);
-}
 
 /**
  * funcao que verifica se a trama recebida é a trama END
@@ -112,8 +97,6 @@ void llopen(int fd) {
       perror("tcsetattr");
       exit(-1);
     }
-
-    (void) signal(SIGALRM, atende); // redireciona todos os SIGALRM para a função atende
 
     printf("New termios structure set\n");
 
@@ -199,7 +182,7 @@ void sendControlMessage(int fd, char answer){
   buffer[3] = AR ^ answer;
   buffer[4] = FLAG;
 
-  write(fd,&buffer,5);
+  write(fd,&buffer,sizeof(buffer));
 }
 
 /**
@@ -410,8 +393,6 @@ void llclose(int fd) {
     buffer[3] = buffer[1] ^ buffer[2];
     buffer[4] = FLAG;
     write(fd, buffer, sizeof(buffer));
-    alarm(3);
-
     printf("Mandou DISC\n");
 
     // efetua a leitura da trama UA enviada de volta pelo emissor
@@ -421,25 +402,6 @@ void llclose(int fd) {
     while (actualState != STOP)
     {
       read(fd,&readed,1); //le um byte da informacao recebida
-
-      if (num_tentativas > 3){ // se excedeu o limite maximo de tentativas
-        //repor os valores standart para não afetar outras funções
-        num_tentativas = 0; 
-        time_out = FALSE;
-        printf("Error llclose: No answer from sender, closing connection.\n");
-        if ( tcsetattr(fd,TCSANOW,&oldtio) == -1) { 
-          perror("tcsetattr");
-          exit(-1);
-        }
-        close(fd);
-        exit(-1);
-      }
-      // envia outra vez a informação de DISC caso tenha ocorrido time out 
-      if (time_out){ 
-        write(fd,&buffer,sizeof(buffer));
-        printf("Sended: DISC\n");
-        time_out = FALSE;
-      }
 
       switch (actualState) // maquina de estados que valida a informacao recebida
       {

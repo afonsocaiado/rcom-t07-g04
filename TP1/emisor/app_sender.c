@@ -39,8 +39,11 @@ int main(int argc, char** argv)
     fd = llopen(porta);
 
     // verificar se a porta serie foi aberta com sucesso
-    if (fd == -1)
+    if (fd == -1){
+        free(controlo);
+        free(dados);
         exit(-1);
+    }
 
     //abre o ficheiro para leitura 
     ficheiro = fopen(nome_ficheiro,"r");
@@ -103,9 +106,12 @@ int main(int argc, char** argv)
             
             bytesEscritos = llwrite(fd,dados,tamanho_dados+bytesLidos);
 
-            if ( bytesEscritos < 0) // se ocorreu um erro no llwrite
+            if ( bytesEscritos < 0){ // se ocorreu um erro no llwrite
+                free(controlo);
+                free(dados);
                 exit(-1);
-            
+            }
+
             num_sequencia++; //incrementar o numero de sequência
             
             bytesLidos = fread(buffer,1,trama_size,ficheiro);
@@ -128,8 +134,11 @@ int main(int argc, char** argv)
     fclose(ficheiro);
 
     //verificar se a porta serie foi fechada com sucesso
-    if (llclose(fd) == -1)
+    if (llclose(fd) == -1){
+        free(controlo);
+        free(dados);
         exit(-1);
+    }
 
     free(controlo);
     free(dados);

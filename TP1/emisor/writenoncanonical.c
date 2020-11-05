@@ -131,7 +131,7 @@ int byteStuffing(char * buffer,int length,char new_buffer[],char BCC[]){
  * @param trama array de caracteres a enviar 
  * @param trama_length indica o tamanho da trama a enviar 
  **/ 
-void sendInfo(int fd, char * trama, int trama_length){
+void sendFrame(int fd, char * trama, int trama_length){
 
   int bytesSended = 0; // bytes que já foram enviados 
   int indice = 0; // indica o indice da trama onde deve começar a enviar info
@@ -139,14 +139,12 @@ void sendInfo(int fd, char * trama, int trama_length){
   while (bytesSended != remaning )
   {
     bytesSended = write(fd,&trama[indice],remaning); // envia a informação para o receiver
-    if (bytesSended != remaning){
-      usleep(40000); // evita erro de resource temporarily unavailable
+    if ( (bytesSended != remaning) && (bytesSended != -1) ){
       indice += bytesSended; //atualiza o indice do array 
       remaning -=bytesSended; // decrementa a quantidade de bytes que faltam enviar
     }
+    //printf("%i - %i\n",bytesSended,remaning);  
   }
-
-  //printf("%i - %i\n",bytesSended,remaning);
 }
 
 /**
@@ -198,7 +196,7 @@ int llwrite(int fd,char * buffer,int length){
     trama[5+new_buffer_size] = FLAG;
   }
   
-  sendInfo(fd,trama,trama_length); //envia a informação para o receptor
+  sendFrame(fd,trama,trama_length); //envia a informação para o receptor
   printf("Sended: Ns=%i\n",Ns);
   alarm(TEMPO_ESPERA); // cria um alarme para gerar os time outs
   
@@ -222,7 +220,7 @@ int llwrite(int fd,char * buffer,int length){
     }
     
     if (time_out){ // se ocorer um time out o sender irá enviar novamente a informação
-      sendInfo(fd,trama,trama_length);
+      sendFrame(fd,trama,trama_length);
       printf("Sended: Ns=%i\n",Ns);
       time_out = FALSE;
     }
@@ -269,7 +267,7 @@ int llwrite(int fd,char * buffer,int length){
           else if (answer == REJ0){
             num_tentativas = 0; //repor o numero de tentativas 
             printf("Received: REJ0\n");
-            sendInfo(fd,trama,trama_length);
+            sendFrame(fd,trama,trama_length);
             printf("Sended: Ns=%i\n",Ns);
             actualState = START;
           }
@@ -279,7 +277,7 @@ int llwrite(int fd,char * buffer,int length){
           else if (answer == REJ1){
             num_tentativas = 0; //repor o numero de tentativas 
             printf("Received: REJ1\n");
-            sendInfo(fd,trama,trama_length);
+            sendFrame(fd,trama,trama_length);
             printf("Sended: Ns=%i\n",Ns);
             actualState = START;
           }
@@ -319,7 +317,7 @@ int llclose(int fd){
   trama[3] = AC ^ DISC;
   trama[4] = FLAG;
 
-  write(fd,&trama,sizeof(trama)); // envia a trama com o comando DISC para o receiver
+  sendFrame(fd,trama,sizeof(trama)); // envia a trama com o comando DISC para o receiver
   printf("Sended: DISC\n");
   alarm(TEMPO_ESPERA); // cria um alarme gera os time outs
 
@@ -346,7 +344,7 @@ int llclose(int fd){
     }
 
     if (time_out){ // se ocorer um time out o sender irá enviar novamente a informação
-      write(fd,&trama,sizeof(trama));
+      sendFrame(fd,trama,sizeof(trama));
       printf("Sended: DISC\n");
       time_out = FALSE;
     }
@@ -403,7 +401,9 @@ int llclose(int fd){
   trama[2] = UA;
   trama[3] = AR ^UA;
 
-  write(fd,&trama,sizeof(trama)); // envia a trama com a resposta UA 
+  sendFrame(fd,trama,sizeof(trama)); // envia a trama com a resposta UA 
+  //sendFrame(fd,trama,sizeof(trama)); 
+  //sendFrame(fd,trama,sizeof(trama)); 
   printf("Sended: UA\n");
 
   if ( tcsetattr(fd,TCSANOW,&oldtio) == -1) {
@@ -476,14 +476,14 @@ int llopen(int porta){
 
   // contrução da trama SET 
   unsigned char BCC = AC ^ SET;
-  unsigned char buffer[5];
+  char buffer[5];
   buffer[0] = FLAG;
   buffer[1]= AC;
   buffer[2] = SET;
   buffer[3] = BCC;
   buffer[4] = FLAG;
 
-  write(fd,&buffer,sizeof(buffer)); // envia a informação para o receiver
+  sendFrame(fd,buffer,sizeof(buffer)); // envia a informação para o receiver
   printf("Sended: SET\n");
   alarm(TEMPO_ESPERA); // cria um alarm para gerar os time outs
   
@@ -510,7 +510,7 @@ int llopen(int porta){
     }
     // envia outra vez a informação de SET caso tenha ocorrido time out 
     if (time_out){ 
-      write(fd,&buffer,sizeof(buffer));
+      sendFrame(fd,buffer,sizeof(buffer));
       printf("Sended: SET\n");
       time_out = FALSE;
     }
