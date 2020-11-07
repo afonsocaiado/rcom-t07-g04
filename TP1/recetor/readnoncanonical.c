@@ -10,7 +10,6 @@
 #include <stdlib.h>
 #include <signal.h>
 
-#define BAUDRATE B38400
 #define _POSIX_SOURCE 1 /* POSIX compliant source */
 #define FALSE 0
 #define TRUE 1
@@ -18,8 +17,35 @@
 #define ESC 0x7D
 #define ESCFLAG 0x5E
 #define ESCESC 0x5D
+#define NUM_BAUND_RATES 19
 
-//volatile int STOP=FALSE;
+struct baud_rate{
+  speed_t baud;
+  char *bauds;
+};
+
+//struct que vai guardar os baudrates para melhor acessibilidade 
+struct baud_rate rates[NUM_BAUND_RATES] = {
+  {B0,"B0"},
+  {B50,"B50"},
+  {B75,"B75"},
+  {B110,"B110"},
+  {B134,"B134"},
+  {B150,"B150"},
+  {B200,"B200"},
+  {B300,"B300"},
+  {B600,"B600"},
+  {B1200,"B1200"},
+  {B1800,"B1800"},
+  {B2400,"B2400"},
+  {B4800,"B4800"},
+  {B9600,"B9600"},
+  {B19200,"B19200"},
+  {B38400,"B38400"},
+  {B57600,"B57600"},
+  {B115200,"B115200"},
+  {B230400,"B230400"},
+};
 
 enum A { AR = 0x03 , AC = 0x01 }; // valores possiveis do campo A na trama
 enum State { START, FLAG_RCV, A_RCV, C_RCV, BCC_OK, ESC_STATE, STOP}; // estados possiveis da maquina de estados usada
@@ -27,8 +53,25 @@ enum C { SET = 0x03, UA = 0x07, DISC = 0x0b, I0 = 0x00, I1 = 0x40, RR0 = 0x05, R
 
 const unsigned char FLAG = 0x7e; // flag de inicio e fim de uma trama
 
+int BAUDRATE = B38400;
 int esperado = 0;
 struct termios oldtio,newtio; //variaveis utilizadas para guardar a configuracao da ligacao pelo cabo serie
+
+/**
+ * vai procurar na struct de baudrate se o baudrate inserido existe
+ * @param rate baudrate em string 
+ * @return baudrate em speed_t
+ **/ 
+speed_t getBaudRate(char * rate){
+    for (size_t i = 0; i < NUM_BAUND_RATES; i++)
+    {
+        if (strcmp(rates[i].bauds,rate) == 0){
+            return rates[i].baud;
+        }
+    }
+    printf("Error: Incorrect BaudRate!\n");
+    return -1;
+}
 
 /**
  * funcao que verifica se a trama recebida é a trama END
@@ -74,7 +117,6 @@ void llopen(int fd) {
       perror("tcgetattr");
       exit(-1);
     }
-
     bzero(&newtio, sizeof(newtio));
     newtio.c_cflag = BAUDRATE | CS8 | CLOCAL | CREAD;
     newtio.c_iflag = IGNPAR;
@@ -455,97 +497,102 @@ void llclose(int fd) {
 // Main function
 int main(int argc, char** argv)
 {
-    int fd; // descritor da ligacao de dados
-    unsigned char mensagemPronta[64005]; // variavel onde cada trama vai ser guardada
-    int sizeMessage = 0; // tamanho da trama
-    int sizeOfStart = 0; // tamanho da trama START
-    unsigned char start[100]; // variavel que guarda a trama START
-
-    /*
-    if ( (argc < 2) || 
-  	     ((strcmp("/dev/ttyS0", argv[1])!=0) && 
-  	      (strcmp("/dev/ttyS1", argv[1])!=0) )){
-      printf("Usage:\tnserial SerialPort\n\tex: nserial /dev/ttyS1\n");
-      exit(1);
-    }*/
-
+  int fd; // descritor da ligacao de dados
+  unsigned char mensagemPronta[65540]; // variavel onde cada trama vai ser guardada
+  int sizeMessage = 0; // tamanho da trama
+  int sizeOfStart = 0; // tamanho da trama START
+  unsigned char start[100]; // variavel que guarda a trama START
 
   /*
-    Open serial port device for reading and writing and not as controlling tty
-    because we don't want to get killed if linenoise sends CTRL-C.
-  */
-    fd = open(argv[1], O_RDWR | O_NOCTTY);
-    if (fd <0) {perror(argv[1]); exit(-1); }
+  if ( (argc < 2) || 
+        ((strcmp("/dev/ttyS0", argv[1])!=0) && 
+        (strcmp("/dev/ttyS1", argv[1])!=0) )){
+    printf("Usage:\tnserial SerialPort\n\tex: nserial /dev/ttyS1\n");
+    exit(1);
+  }*/
 
-    llopen(fd);
-  
-    sizeOfStart = llread(fd, start); // lê o pacote de controlo START
-  
-    //recolher a informação do tamanho do ficheiro
-    int num_blocos_tamanho = start[2];
-    char tamanho_str[num_blocos_tamanho];
-    for (size_t i = 0; i < num_blocos_tamanho; i++)
+
+/*
+  Open serial port device for reading and writing and not as controlling tty
+  because we don't want to get killed if linenoise sends CTRL-C.
+*/
+
+  if (argc == 3){
+    BAUDRATE = getBaudRate(argv[2]);
+    if(BAUDRATE == -1) // se o baudrate estiver incorreto
+      exit(-1);
+  }
+
+  fd = open(argv[1], O_RDWR | O_NOCTTY);
+  if (fd <0) {perror(argv[1]); exit(-1); }
+
+  llopen(fd);
+
+  sizeOfStart = llread(fd, start); // lê o pacote de controlo START
+
+  //recolher a informação do tamanho do ficheiro
+  int num_blocos_tamanho = start[2];
+  char tamanho_str[num_blocos_tamanho];
+  for (size_t i = 0; i < num_blocos_tamanho; i++)
+  {
+    tamanho_str[i] = start[3+i];
+  }
+  int tamanho_int = atoi(tamanho_str);
+
+  //recolher a informação do nome do ficheiro
+  int num_blocos_nome = start[3+num_blocos_tamanho+1];
+  char nome_ficheiro[num_blocos_nome+1];
+  for (size_t i = 0; i < num_blocos_nome; i++)
+  {
+    nome_ficheiro[i] = start[5 + num_blocos_tamanho + i];
+  }
+  nome_ficheiro[num_blocos_nome]= '\0';
+
+  // cria ficheiro com os dados das tramas de informacao recebidas
+  FILE *file = fopen(nome_ficheiro, "wb+");
+
+  //enquanto houver informação para ler
+  while (TRUE)
+  {
+    sizeMessage = llread(fd, mensagemPronta); //lê de fd um pacote de informação 
+
+    if (sizeMessage == 0)
+      continue;
+
+    if (isAtEnd(start, sizeOfStart, mensagemPronta, sizeMessage)) // se leu a trama de END
     {
-      tamanho_str[i] = start[3+i];
+      printf("End message received\n");
+      break;
     }
-    int tamanho_int = atoi(tamanho_str);
 
-    //recolher a informação do nome do ficheiro
-    int num_blocos_nome = start[3+num_blocos_tamanho+1];
-    char nome_ficheiro[num_blocos_nome+1];
-    for (size_t i = 0; i < num_blocos_nome; i++)
+    int sizeWithoutHeader = 0; //guarda o tamanho do pacote de dados sem o cabeçalho 
+    sizeWithoutHeader = sizeMessage - 4;
+
+    // remove o cabeçalho do nível de aplicação das tramas de informacao
+    int i = 0;
+    int j = 4;
+    unsigned char messageRemovedHeader[sizeWithoutHeader]; //array que vai guardar os dados recebidos
+    for (; i < sizeMessage; i++, j++)
     {
-      nome_ficheiro[i] = start[5 + num_blocos_tamanho + i];
+      messageRemovedHeader[i] = mensagemPronta[j];
     }
-    nome_ficheiro[num_blocos_nome]= '\0';
- 
-    // cria ficheiro com os dados das tramas de informacao recebidas
-    FILE *file = fopen(nome_ficheiro, "wb+");
-
-    //enquanto houver informação para ler
-    while (TRUE)
-    {
-      sizeMessage = llread(fd, mensagemPronta); //lê de fd um pacote de informação 
-
-      if (sizeMessage == 0)
-        continue;
-
-      if (isAtEnd(start, sizeOfStart, mensagemPronta, sizeMessage)) // se leu a trama de END
-      {
-        printf("End message received\n");
-        break;
-      }
-
-      int sizeWithoutHeader = 0; //guarda o tamanho do pacote de dados sem o cabeçalho 
-      sizeWithoutHeader = sizeMessage - 4;
-
-      // remove o cabeçalho do nível de aplicação das tramas de informacao
-      int i = 0;
-      int j = 4;
-      unsigned char messageRemovedHeader[sizeWithoutHeader]; //array que vai guardar os dados recebidos
-      for (; i < sizeMessage; i++, j++)
-      {
-        messageRemovedHeader[i] = mensagemPronta[j];
-      }
-      
-      //escreve no ficheiro file os dados recebidos 
-      fwrite(messageRemovedHeader, 1, sizeWithoutHeader, file);
-    }
-
-    printf("%d\n", tamanho_int);
     
-    //fecha o ficheiro escrito
-    fclose(file);
+    //escreve no ficheiro file os dados recebidos 
+    fwrite(messageRemovedHeader, 1, sizeWithoutHeader, file);
+  }
+
+  printf("%d\n", tamanho_int);
+  
+  //fecha o ficheiro escrito
+  fclose(file);
 
 
-    //fecha a ligação com a porta série 
-    llclose(fd);
+  //fecha a ligação com a porta série 
+  llclose(fd);
 
-    tcsetattr(fd,TCSANOW,&oldtio);
+  tcsetattr(fd,TCSANOW,&oldtio);
 
-    sleep(1);
-
-    close(fd);
-    return 0;
+  close(fd);
+  return 0;
 
 }

@@ -6,7 +6,23 @@
 
 enum T { TAMANHO = 0 , NOME = 1};
 
-int trama_size = 10;  //tamanho default de envio da trama é 10 bytes
+int trama_size = 1000;  //tamanho default de envio da trama é 10 bytes
+
+/**
+ * vai procurar na struct de baudrate se o baudrate inserido existe
+ * @param rate baudrate em string 
+ * @return baudrate em speed_t
+ **/ 
+speed_t getBaudRate(char * rate){
+    for (size_t i = 0; i < NUM_BAUND_RATES; i++)
+    {
+        if (strcmp(rates[i].bauds,rate) == 0){
+            return rates[i].baud;
+        }
+    }
+    printf("Error: Incorrect BaudRate!\n");
+    return -1;
+}
 
 int main(int argc, char** argv)
 {
@@ -28,12 +44,17 @@ int main(int argc, char** argv)
 
     if(argc == 4){
         trama_size = atoi(argv[3]);
-        if (trama_size > 64000){
+        if (trama_size > 65535){
             printf("Frame size exceeded!\n");
             exit(-1);
         }
     }
 
+    if (argc == 5){
+        BAUDRATE = getBaudRate(argv[4]);
+        if(BAUDRATE == -1) // se o baudrate estiver incorreto
+            exit(-1);
+    }
     porta = atoi(&argv[1][9]); // numero da porta de comunicação tty
     
     fd = llopen(porta);

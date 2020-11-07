@@ -10,18 +10,48 @@
 #include <stdlib.h>
 #include <signal.h>
 
-#define BAUDRATE B38400
 #define MODEMDEVICE "/dev/ttyS"
 #define _POSIX_SOURCE 1 /* POSIX compliant source */
 #define FALSE 0
 #define TRUE 1
 #define DESLIGAR_ALARME 0
-#define TEMPO_ESPERA 3
+#define TEMPO_ESPERA 5
 #define MAX_TENTATIVAS 3
+#define NUM_BAUND_RATES 19
 
 enum A { AC = 0x03 , AR = 0x01 }; // valores possiveis do campo A na trama
 enum State { START, FLAG_RCV, A_RCV, C_RCV, BCC_OK, STOP}; // estados possiveis da maquina de estados usada
 enum C { SET = 0x03, DISC = 0x0b, UA = 0x07, RR0 = 0x05, RR1 = 0x85, REJ0 = 0x01, REJ1 = 0x81 , I0 = 0x00, I1 = 0x40};// valores possiveis do campo C na trama
+
+int BAUDRATE = B38400; // baudrate que está por default
+
+struct baud_rate{
+  speed_t baud;
+  char *bauds;
+};
+
+//struct que vai guardar os baudrates para melhor acessibilidade 
+struct baud_rate rates[NUM_BAUND_RATES] = {
+  {B0,"B0"},
+  {B50,"B50"},
+  {B75,"B75"},
+  {B110,"B110"},
+  {B134,"B134"},
+  {B150,"B150"},
+  {B200,"B200"},
+  {B300,"B300"},
+  {B600,"B600"},
+  {B1200,"B1200"},
+  {B1800,"B1800"},
+  {B2400,"B2400"},
+  {B4800,"B4800"},
+  {B9600,"B9600"},
+  {B19200,"B19200"},
+  {B38400,"B38400"},
+  {B57600,"B57600"},
+  {B115200,"B115200"},
+  {B230400,"B230400"},
+};
 
 const unsigned char FLAG = 0x7e; // flag de inicio e fim de uma trama
 
@@ -413,7 +443,7 @@ int llclose(int fd){
   
   printf("Closing Connection...\n");
 
-  sleep(1);
+  sleep(3);
   
   close(fd);
 
@@ -439,14 +469,13 @@ int llopen(int porta){
     Open serial port device for reading and writing and not as controlling tty
     because we don't want to get killed if linenoise sends CTRL-C.
   */
-  fd = open(modemDevise, O_RDWR | O_NOCTTY | O_NONBLOCK);
+  fd = open(modemDevise, O_RDWR | O_NOCTTY );
   if (fd <0) {perror(modemDevise); exit(-1); }
 
   if ( tcgetattr(fd,&oldtio) == -1) { /* save current port settings */
     perror("tcgetattr");
     exit(-1);
   }
-
   bzero(&newtio, sizeof(newtio));
   newtio.c_cflag = BAUDRATE | CS8 | CLOCAL | CREAD;
   newtio.c_iflag = IGNPAR;
@@ -456,7 +485,7 @@ int llopen(int porta){
   newtio.c_lflag = 0;
 
   newtio.c_cc[VTIME]    = 0;   /* inter-character timer unused */
-  newtio.c_cc[VMIN]     = 1;   /* blocking read until 5 chars received */
+  newtio.c_cc[VMIN]     = 0;   /* blocking read until 0 chars received */
 
   /* 
     VTIME e VMIN devem ser alterados de forma a proteger com um temporizador a 
@@ -495,7 +524,7 @@ int llopen(int porta){
   while (actualState != STOP)
   {
     read(fd,&readed,1); //lê um byte da informação recebida
-
+    
     if (num_tentativas > MAX_TENTATIVAS){ // se excedeu o limite maximo de tentativas
       //repor os valores standart para não afetar outras funções
       num_tentativas = 0; 
