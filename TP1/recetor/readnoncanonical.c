@@ -552,8 +552,8 @@ int main(int argc, char** argv)
   // cria ficheiro com os dados das tramas de informacao recebidas
   FILE *file = fopen(nome_ficheiro, "wb+");
 
-  int incial = clock();
-  int final;
+  time_t incial,final;
+  incial = time(NULL);
   //enquanto houver informação para ler
   while (TRUE)
   {
@@ -564,7 +564,7 @@ int main(int argc, char** argv)
 
     if (isAtEnd(start, sizeOfStart, mensagemPronta, sizeMessage)) // se leu a trama de END
     {
-      final = clock() - incial;
+      final = time(NULL);
       printf("End message received\n");
       break;
     }
@@ -585,7 +585,7 @@ int main(int argc, char** argv)
     fwrite(messageRemovedHeader, 1, sizeWithoutHeader, file);
   }
 
-  printf("Tamanho do Ficheiro: %d\nTempo: %f\n", tamanho_int,(float)final/CLOCKS_PER_SEC);
+  printf("Tamanho do Ficheiro: %d\nTempo: %f\n", tamanho_int,difftime(final,incial));
   
   //fecha o ficheiro escrito
   fclose(file);
