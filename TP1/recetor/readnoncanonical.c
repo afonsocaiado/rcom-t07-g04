@@ -9,6 +9,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <time.h>
 
 #define _POSIX_SOURCE 1 /* POSIX compliant source */
 #define FALSE 0
@@ -551,6 +552,8 @@ int main(int argc, char** argv)
   // cria ficheiro com os dados das tramas de informacao recebidas
   FILE *file = fopen(nome_ficheiro, "wb+");
 
+  int incial = clock();
+  int final;
   //enquanto houver informação para ler
   while (TRUE)
   {
@@ -561,6 +564,7 @@ int main(int argc, char** argv)
 
     if (isAtEnd(start, sizeOfStart, mensagemPronta, sizeMessage)) // se leu a trama de END
     {
+      final = clock() - incial;
       printf("End message received\n");
       break;
     }
@@ -581,7 +585,7 @@ int main(int argc, char** argv)
     fwrite(messageRemovedHeader, 1, sizeWithoutHeader, file);
   }
 
-  printf("%d\n", tamanho_int);
+  printf("Tamanho do Ficheiro: %d\nTempo: %f\n", tamanho_int,(float)final/CLOCKS_PER_SEC);
   
   //fecha o ficheiro escrito
   fclose(file);
