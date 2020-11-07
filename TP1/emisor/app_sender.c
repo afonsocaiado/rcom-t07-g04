@@ -1,28 +1,14 @@
-#include "writenoncanonical.c"
+#include "protocol_sender.c"
+#include "../app_utils.c"
 
 #define DADOS 1
 #define START 2
 #define END 3
 
+//indentificadores de informação 
 enum T { TAMANHO = 0 , NOME = 1};
 
-int trama_size = 1000;  //tamanho default de envio da trama é 10 bytes
-
-/**
- * vai procurar na struct de baudrate se o baudrate inserido existe
- * @param rate baudrate em string 
- * @return baudrate em speed_t
- **/ 
-speed_t getBaudRate(char * rate){
-    for (size_t i = 0; i < NUM_BAUND_RATES; i++)
-    {
-        if (strcmp(rates[i].bauds,rate) == 0){
-            return rates[i].baud;
-        }
-    }
-    printf("Error: Incorrect BaudRate!\n");
-    return -1;
-}
+int trama_size = 1000;  //tamanho default de envio da trama é 1000 bytes
 
 int main(int argc, char** argv)
 {
@@ -55,7 +41,6 @@ int main(int argc, char** argv)
         if(BAUDRATE == -1) // se o baudrate estiver incorreto
             exit(-1);
     }
-
 
     porta = atoi(&argv[1][9]); // numero da porta de comunicação tty
     
@@ -103,14 +88,13 @@ int main(int argc, char** argv)
         controlo= (char * ) realloc (controlo,tamanho_controlo);//necessário alocar mais memória para guardar o nome do ficheiro
         memcpy(controlo+5+num_blocos_tamanho,nome_ficheiro,strlen(nome_ficheiro));
 
-        
+
         int bytesEscritos = llwrite(fd, controlo,tamanho_controlo);
 
         if ( bytesEscritos < 0) // se ocorreu um erro no llwrite
             exit(-1);
         
         //envio de dados
-
         char buffer[trama_size];
         int bytesLidos = fread(buffer,1,trama_size,ficheiro);
         dados[0] = DADOS;
@@ -152,6 +136,9 @@ int main(int argc, char** argv)
 
     }else{
         printf("O ficheiro %s não existe.\n",nome_ficheiro);
+        free(controlo);
+        free(dados);
+        exit(-1);
     }
 
     fclose(ficheiro);
@@ -165,5 +152,5 @@ int main(int argc, char** argv)
 
     free(controlo);
     free(dados);
-  return 0;
+    return 0;
 }
