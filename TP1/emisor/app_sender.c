@@ -42,7 +42,7 @@ int main(int argc, char** argv)
     exit(1);
     }*/
 
-    if(argc == 4){
+    if(argc >= 4){
         trama_size = atoi(argv[3]);
         if (trama_size > 65535){
             printf("Frame size exceeded!\n");
@@ -55,6 +55,8 @@ int main(int argc, char** argv)
         if(BAUDRATE == -1) // se o baudrate estiver incorreto
             exit(-1);
     }
+
+
     porta = atoi(&argv[1][9]); // numero da porta de comunicação tty
     
     fd = llopen(porta);
