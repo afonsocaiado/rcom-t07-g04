@@ -436,14 +436,14 @@ int llclose(int fd){
   //sendFrame(fd,trama,sizeof(trama)); 
   printf("Sended: UA\n");
 
+  sleep(3);
+
   if ( tcsetattr(fd,TCSANOW,&oldtio) == -1) {
     perror("tcsetattr");
     exit(-1);
   }
   
   printf("Closing Connection...\n");
-
-  sleep(3);
   
   close(fd);
 
