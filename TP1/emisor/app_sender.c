@@ -8,41 +8,38 @@
 //indentificadores de informação 
 enum T { TAMANHO = 0 , NOME = 1};
 
-int trama_size = 1000;  //tamanho default de envio da trama é 1000 bytes
-
 int main(int argc, char** argv)
 {
     int fd, porta , num_sequencia = 0;
+    int frame_size;
     unsigned int tamanho; //tamanho do ficheiro em blocos de 1 byte
     FILE * ficheiro; // ficheiro que irá ser enviado
-    char * nome_ficheiro = argv[2]; // nome do fiheiro a ser enviado
+    char * nome_ficheiro; // nome do fiheiro a ser enviado
     int tamanho_dados = 4; //tamanho do pacote de dados inicialmente
     int tamanho_controlo = 5; //tamanho do pacote de controlo inicialmente
     char * controlo = (char *) malloc(tamanho_controlo);
     char * dados = (char * )malloc(tamanho_dados);
-    /*
-    if ( (argc < 2) || 
-        ((strcmp("/dev/ttyS0", argv[1])!=0) && 
-        (strcmp("/dev/ttyS1", argv[1])!=0) )) {
-    printf("Usage:\tnserial SerialPort\n\tex: nserial /dev/ttyS1\n");
+    struct shell_inputs arguments; // struct que vai guardar os argumentos introduzidos
+    
+    if ( (argc < 3) || (strncmp("/dev/ttyS",argv[1],9) != 0) ) {
+    printf("Invalid inputs, the template command is:\n./app /dev/ttySx file_name (--frame-size 1000 -B 38400)\n");
     exit(1);
-    }*/
-
-    if(argc >= 4){
-        trama_size = atoi(argv[3]);
-        if (trama_size > 65535){
-            printf("Frame size exceeded!\n");
-            exit(-1);
-        }
     }
 
-    if (argc == 5){
-        BAUDRATE = getBaudRate(argv[4]);
-        if(BAUDRATE == -1) // se o baudrate estiver incorreto
-            exit(-1);
+    //vai buscar ao array argv os argumentos introduzidos 
+    if (readArgvValues(argc,argv,&arguments,TRANSMITTER) == -1){
+        exit(-1);
     }
-
-    porta = atoi(&argv[1][9]); // numero da porta de comunicação tty
+    
+    //atribuição dos argumentos lidos
+    frame_size = arguments.frame_size;
+    if (frame_size > 65535){
+        printf("Frame size exceeded!\n");
+        exit(-1);
+    }
+    nome_ficheiro = arguments.file_name; 
+    BAUDRATE = arguments.baudrate;
+    porta = atoi(&arguments.port[9]); // numero da porta de comunicação tty
     
     fd = llopen(porta);
 
@@ -95,8 +92,8 @@ int main(int argc, char** argv)
             exit(-1);
         
         //envio de dados
-        char buffer[trama_size];
-        int bytesLidos = fread(buffer,1,trama_size,ficheiro);
+        char buffer[frame_size];
+        int bytesLidos = fread(buffer,1,frame_size,ficheiro);
         dados[0] = DADOS;
         while (bytesLidos > 0){ //enquanto houver dados para enviar
             //construção do pacote de dados
@@ -121,7 +118,7 @@ int main(int argc, char** argv)
 
             num_sequencia++; //incrementar o numero de sequência
             
-            bytesLidos = fread(buffer,1,trama_size,ficheiro);
+            bytesLidos = fread(buffer,1,frame_size,ficheiro);
                         
         } 
         
@@ -138,6 +135,7 @@ int main(int argc, char** argv)
         printf("O ficheiro %s não existe.\n",nome_ficheiro);
         free(controlo);
         free(dados);
+        llclose(fd);
         exit(-1);
     }
 

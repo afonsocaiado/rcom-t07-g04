@@ -5,3 +5,7 @@ app:
 
 clean:
 	rm app
+
+again:
+	rm app
+	gcc -o app app_receiver.c -Wall

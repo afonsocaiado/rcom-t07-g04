@@ -1,6 +1,37 @@
 #include "protocol_receiver.c"
 #include "../app_utils.c"
 
+/**
+ * funcao que verifica se a trama recebida é a trama END
+ * @param start trama START recebida anteriormente
+ * @param sizeStart tamanho da trama START
+ * @param end mensagem lida a verificar se é END
+ * @param sizeEnd tamanho dessa mesma mensagem
+ * @return TRUE se for END, FALSE caso contrario
+ **/
+int isAtEnd(unsigned char *start, int sizeStart, unsigned char *end, int sizeEnd)
+{
+  int s = 1;
+  int e = 1;
+  if (sizeStart != sizeEnd) // se o tamanho da trama a analisar e da trama de START nao for o mesmo
+    return FALSE;
+  else
+  {
+    if (end[0] == 0x03) // se o campo de controlo da trama atual for 3 (end)
+    {
+      for (; s < sizeStart; s++, e++) // percorre a trama atual e a trama START simultaneamente, para as comparar
+      {
+        if (start[s] != end[e]) // se a trama a analisar nao for igual a trama de START em qualquer um dos bytes
+          return FALSE;
+      }
+      return TRUE;
+    }
+    else
+    {
+      return FALSE;
+    }
+  }
+}
 
 int main(int argc, char** argv)
 {
@@ -10,23 +41,21 @@ int main(int argc, char** argv)
   int sizeOfStart = 0; // tamanho do pacote START
   unsigned char start[100]; // variavel que guarda o pacote START
   time_t incial,final; // inicial vai guardar o tempo de quando começa a receber informação, e final vai guardar o tempo de quando acabar de transferir a informação
-
-  /*
-  if ( (argc < 2) || 
-        ((strcmp("/dev/ttyS0", argv[1])!=0) && 
-        (strcmp("/dev/ttyS1", argv[1])!=0) )){
-    printf("Usage:\tnserial SerialPort\n\tex: nserial /dev/ttyS1\n");
+  struct shell_inputs arguments;
+  
+  if ( (argc < 2) || (strncmp("/dev/ttyS",argv[1],9) != 0) ){
+    printf("Invalid inputs, the template command is:\n./app /dev/ttySx [-B 38400]\n");
     exit(1);
-  }*/
-
-
-  if (argc == 3){
-    BAUDRATE = getBaudRate(argv[2]);
-    if(BAUDRATE == -1) // se o baudrate estiver incorreto
-      exit(-1);
   }
 
-  porta = atoi(&argv[1][9]); // numero da porta de comunicação tty
+  //vai buscar ao array argv os argumentos introduzidos 
+  if (readArgvValues(argc,argv,&arguments,RECEIVER) == -1){
+    exit(-1);
+  }
+
+  //atribuição dos argumentos lidos
+  BAUDRATE = arguments.baudrate;
+  porta = atoi(&arguments.port[9]); // numero da porta de comunicação tty
 
   fd = llopen(porta);
 
@@ -95,7 +124,7 @@ int main(int argc, char** argv)
     fwrite(messageRemovedHeader, 1, sizeWithoutHeader, file);
   }
 
-  printf("File size: %d\nTransfer time: %.2f\n", tamanho_int,difftime(final,incial));
+  printf("File size: %d bytes\nTransfer time: %.2f sec\n", tamanho_int,difftime(final,incial));
   
   //fecha o ficheiro escrito
   fclose(file);

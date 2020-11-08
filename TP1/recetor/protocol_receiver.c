@@ -12,41 +12,9 @@
 
 enum A { AR = 0x03 , AC = 0x01 }; // valores possiveis do campo A na trama
 
-int BAUDRATE = B38400; // default baudrate
+speed_t BAUDRATE; // default baudrate
 int esperado = 0; //numero de sequencia esperado
 struct termios oldtio,newtio; //variaveis utilizadas para guardar a configuracao da ligacao pelo cabo serie
-
-/**
- * funcao que verifica se a trama recebida é a trama END
- * @param start trama START recebida anteriormente
- * @param sizeStart tamanho da trama START
- * @param end mensagem lida a verificar se é END
- * @param sizeEnd tamanho dessa mesma mensagem
- * @return TRUE se for END, FALSE caso contrario
- **/
-int isAtEnd(unsigned char *start, int sizeStart, unsigned char *end, int sizeEnd)
-{
-  int s = 1;
-  int e = 1;
-  if (sizeStart != sizeEnd) // se o tamanho da trama a analisar e da trama de START nao for o mesmo
-    return FALSE;
-  else
-  {
-    if (end[0] == 0x03) // se o campo de controlo da trama atual for 3 (end)
-    {
-      for (; s < sizeStart; s++, e++) // percorre a trama atual e a trama START simultaneamente, para as comparar
-      {
-        if (start[s] != end[e]) // se a trama a analisar nao for igual a trama de START em qualquer um dos bytes
-          return FALSE;
-      }
-      return TRUE;
-    }
-    else
-    {
-      return FALSE;
-    }
-  }
-}
 
 /**
  * funcao responsavel por ler a trama SET e devolver a trama UA
@@ -225,10 +193,10 @@ int llread(int fd,unsigned char * message) {
         {
           if (trama == 0){ // se N(s) foi 0
             sendFrame_S_U(fd, AR ,RR1); // responde ao emissor com confirmacao positiva e com N(r) = 1
-            printf("Enviou RR, T: %d\n", trama);
+            printf("Enviou RR, T: %d\n", trama^1);
           }else { // se N(s) foi 1
             sendFrame_S_U(fd, AR, RR0); // responde ao emissor com confirmacao positiva e com N(r) = 0
-            printf("Enviou RR, T: %d\n", trama);
+            printf("Enviou RR, T: %d\n", trama^1);
           }
           actualState = STOP;
           mandarDados = TRUE;

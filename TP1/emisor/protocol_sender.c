@@ -15,7 +15,7 @@
 
 enum A { AC = 0x03 , AR = 0x01 }; // valores possiveis do campo A na trama
 
-int BAUDRATE = B38400; // baudrate que está por default
+speed_t BAUDRATE; // baudrate irá ser utilizado na ligação série 
 
 int Ns = 0; // numero de sequencia da trama do emisor
 int Nr = 1; // numero de sequencia da trama do receptor
