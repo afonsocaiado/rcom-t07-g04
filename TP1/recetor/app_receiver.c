@@ -2,9 +2,9 @@
 #include "../app_utils.c"
 
 /**
- * funcao que verifica se a trama recebida é a trama END
- * @param start trama START recebida anteriormente
- * @param sizeStart tamanho da trama START
+ * funcao que verifica se o pacote recebido é o pacote END
+ * @param start pacote START recebida anteriormente
+ * @param sizeStart tamanho da pacote START
  * @param end mensagem lida a verificar se é END
  * @param sizeEnd tamanho dessa mesma mensagem
  * @return TRUE se for END, FALSE caso contrario
@@ -13,15 +13,15 @@ int isAtEnd(unsigned char *start, int sizeStart, unsigned char *end, int sizeEnd
 {
   int s = 1;
   int e = 1;
-  if (sizeStart != sizeEnd) // se o tamanho da trama a analisar e da trama de START nao for o mesmo
+  if (sizeStart != sizeEnd) // se o tamanho do pacote a analisar e do pacote de START nao for o mesmo
     return FALSE;
   else
   {
-    if (end[0] == 0x03) // se o campo de controlo da trama atual for 3 (end)
+    if (end[0] == 0x03) // se o campo de controlo do pacote atual for 3 (end)
     {
-      for (; s < sizeStart; s++, e++) // percorre a trama atual e a trama START simultaneamente, para as comparar
+      for (; s < sizeStart; s++, e++) // percorre o pacote atual e o pacote START simultaneamente, para os comparar
       {
-        if (start[s] != end[e]) // se a trama a analisar nao for igual a trama de START em qualquer um dos bytes
+        if (start[s] != end[e]) // se o pacote a analisar nao for igual ao pacote de START em qualquer um dos bytes
           return FALSE;
       }
       return TRUE;
@@ -35,14 +35,15 @@ int isAtEnd(unsigned char *start, int sizeStart, unsigned char *end, int sizeEnd
 
 int main(int argc, char** argv)
 {
-  int fd,porta; // descritor da ligacao de dados
+  int fd,porta; // descritor da ligacao de dados (fd) e porta serie (porta)
   unsigned char mensagemPronta[65540]; // variavel onde cada pacote vai ser guardado
   int sizeMessage = 0; // tamanho do pacote
   int sizeOfStart = 0; // tamanho do pacote START
   unsigned char start[100]; // variavel que guarda o pacote START
   time_t incial,final; // inicial vai guardar o tempo de quando começa a receber informação, e final vai guardar o tempo de quando acabar de transferir a informação
-  struct shell_inputs arguments;
+  struct shell_inputs arguments; // struct que vai guardar os argumentos introduzidos
   
+  //verifica se pelo menos tem 2 argumentos, e se o segundo começa com /dev/ttyS
   if ( (argc < 2) || (strncmp("/dev/ttyS",argv[1],9) != 0) ){
     printf("Invalid inputs, the template command is:\n./app /dev/ttySx [-B 38400]\n");
     exit(1);
@@ -55,7 +56,7 @@ int main(int argc, char** argv)
 
   //atribuição dos argumentos lidos
   BAUDRATE = arguments.baudrate;
-  porta = atoi(&arguments.port[9]); // numero da porta de comunicação tty
+  porta = atoi(&arguments.port[9]);
 
   fd = llopen(porta);
 
@@ -75,7 +76,7 @@ int main(int argc, char** argv)
   {
     tamanho_str[i] = start[3+i];
   }
-  int tamanho_int = atoi(tamanho_str); //converter o tamanho em string para inteiro
+  int tamanho_int = atoi(tamanho_str); //converter o tamanho de string para inteiro
 
   //recolher a informação do nome do ficheiro
   int num_blocos_nome = start[3+num_blocos_tamanho+1];
@@ -86,7 +87,7 @@ int main(int argc, char** argv)
   }
   nome_ficheiro[num_blocos_nome]= '\0';
 
-  // cria ficheiro com os dados das tramas de informacao recebidas
+  // cria ficheiro com o nome obtido no pacote START
   FILE *file = fopen(nome_ficheiro, "wb+");
 
   incial = time(NULL);//guarda o tempo atual em incial
@@ -96,7 +97,7 @@ int main(int argc, char** argv)
   {
     sizeMessage = llread(fd, mensagemPronta); //lê de fd um pacote de informação 
 
-    if(sizeMessage == -1)
+    if(sizeMessage == -1) // se ocorreu algum erro no llread
       exit(-1);
     if (sizeMessage == 0)
       continue;
@@ -108,10 +109,9 @@ int main(int argc, char** argv)
       break;
     }
 
-    int sizeWithoutHeader = 0; //guarda o tamanho do pacote de dados sem o cabeçalho 
-    sizeWithoutHeader = sizeMessage - 4;
+    int sizeWithoutHeader = sizeMessage - 4; //guarda o tamanho do pacote de dados sem o cabeçalho 
 
-    // remove o cabeçalho do nível de aplicação das tramas de informacao
+    // remove o cabeçalho do nível de aplicação dos pacotes de dados
     int i = 0;
     int j = 4;
     unsigned char messageRemovedHeader[sizeWithoutHeader]; //array que vai guardar os dados recebidos
@@ -120,10 +120,11 @@ int main(int argc, char** argv)
       messageRemovedHeader[i] = mensagemPronta[j];
     }
     
-    //escreve no ficheiro file os dados recebidos 
+    //escreve no ficheiro os dados recebidos 
     fwrite(messageRemovedHeader, 1, sizeWithoutHeader, file);
   }
 
+  //imprime o tamanho do ficheiro e o tempo que demorou a ser transferido
   printf("File size: %d bytes\nTransfer time: %.2f sec\n", tamanho_int,difftime(final,incial));
   
   //fecha o ficheiro escrito

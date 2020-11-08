@@ -15,7 +15,7 @@ struct baud_rate{
 //guarda os parametros passados pela shell
 struct shell_inputs
 {
-  char port[15]; //Dispositivo /dev/ttySx, x= 0,1
+  char port[15]; //Dispositivo /dev/ttySx, x= 0,1,10,11 
   char file_name[200]; //nome do ficheiro a enviar
   int frame_size; //tamanho maximo da quantidade de dados que devem ser enviados de uma vez
   speed_t baudrate; // baudrate da ligação serie
@@ -45,7 +45,7 @@ struct baud_rate rates[NUM_BAUND_RATES] = {
 };
 
 /**
- * vai procurar na struct de baudrate se o baudrate inserido existe
+ * vai procurar na struct de baudrates se o baudrate inserido existe
  * @param rate baudrate em string 
  * @return baudrate em speed_t ou -1 em caso de erro
  **/ 

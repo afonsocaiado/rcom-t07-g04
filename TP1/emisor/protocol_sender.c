@@ -15,13 +15,13 @@
 
 enum A { AC = 0x03 , AR = 0x01 }; // valores possiveis do campo A na trama
 
-speed_t BAUDRATE; // baudrate irá ser utilizado na ligação série 
+speed_t BAUDRATE; // baudrate que irá ser utilizado na ligação série 
 
 int Ns = 0; // numero de sequencia da trama do emisor
 int Nr = 1; // numero de sequencia da trama do receptor
 
 int time_out =FALSE; // flag que indica se ocorreu um time out
-int num_tentativas = 0; // numero de tentativas de restransmissão
+int num_tentativas = 0; // numero de tentativas de retransmissão
 
 struct termios oldtio,newtio; //variaveis utilizadas para guardar a configuração da ligação pelo cabo serie
 
@@ -57,10 +57,10 @@ void changeNSS(){
 * @param length tamanho do array buffer
 * @param new_buffer array que irá receber o conteudo do buffer após o byte stuffing
 * @param BCC array que contem o(s) valore(s) do parametro BCC que protege os dados 
-* @return tamanho do new_buffer mais o BCC caso este seja afetado pelo byte stuffing
+* @return tamanho do new_buffer 
 **/
 int byteStuffing(char * buffer,int length,char new_buffer[],char BCC[]){
-  int j=0; // variavel que vai conter o tamanho de new_buffer mais o Bcc, mas também irá funcionar de indice do array new_buffer
+  int j=0; // variavel que vai conter o tamanho de new_buffer, mas também irá funcionar de indice do array new_buffer
 
   //byte stuffing do buffer
   for (int i = 0; i < length; i++)
@@ -102,8 +102,8 @@ int byteStuffing(char * buffer,int length,char new_buffer[],char BCC[]){
 void sendFrame_I(int fd, char * trama, int trama_length){
 
   int bytesSended = 0; // bytes que já foram enviados 
-  int indice = 0; // indica o indice da trama onde deve começar a enviar info
-  int remaning = trama_length; // indica a quantidade de bytes que falta enviar 
+  int indice = 0; // indica o indice da trama onde deve começar a enviar a informação
+  int remaning = trama_length; // indica a quantidade de bytes que faltam enviar 
   while (bytesSended != remaning )
   {
     bytesSended = write(fd,&trama[indice],remaning); // envia a informação para o receiver
@@ -343,7 +343,7 @@ int llwrite(int fd,char * buffer,int length){
         actualState = START;
       break;
     }  
-    case A_RCV:{
+    case A_RCV:{ //recebe byte RR1, RR0, REJ0, REJ1
       answer = readed; // coloca o valor de readed em answer para ser utilizada nos estados seguintes
       if ( (readed == RR1) || (readed == RR0) || (readed == REJ0) || (readed == REJ1) )
         actualState = C_RCV;
@@ -365,7 +365,7 @@ int llwrite(int fd,char * buffer,int length){
     case BCC_OK:{ // recebe byte FLAG
       if (readed == FLAG){
         if (Nr){
-          if(answer == RR1)
+          if(answer == RR1) 
             actualState = STOP;
           else if (answer == REJ0){
             num_tentativas = 0; //repor o numero de tentativas 
@@ -399,7 +399,7 @@ int llwrite(int fd,char * buffer,int length){
   num_tentativas = 0;
   alarm(DESLIGAR_ALARME); //desliga o alarme porque já foi recebida a resposta pretendida
 
-  changeNSS(); 
+  changeNSS(); //altera os valores de Ns e Nr 
   
   return trama_length;
 }
@@ -495,7 +495,7 @@ int llclose(int fd){
   sendFrame_S_U(fd,AR,UA);
   printf("Sended: UA\n");
 
-  sleep(3);
+  sleep(3); // importante para garantir que o receptor leia a trama UA antes que o emisor fechar a ligação
 
   if ( tcsetattr(fd,TCSANOW,&oldtio) == -1) {
     perror("tcsetattr");

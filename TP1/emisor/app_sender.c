@@ -10,17 +10,18 @@ enum T { TAMANHO = 0 , NOME = 1};
 
 int main(int argc, char** argv)
 {
-    int fd, porta , num_sequencia = 0;
-    int frame_size;
+    int fd, porta , num_sequencia = 0; // (fd) - descritor da ligacao de dados, (porta) - porta serie, (num_sequencia) - numero de sequencia do pacote de dados
+    int frame_size; //tamanho máximo em bytes dos dados contidos no pacote de dados
     unsigned int tamanho; //tamanho do ficheiro em blocos de 1 byte
     FILE * ficheiro; // ficheiro que irá ser enviado
     char * nome_ficheiro; // nome do fiheiro a ser enviado
     int tamanho_dados = 4; //tamanho do pacote de dados inicialmente
     int tamanho_controlo = 5; //tamanho do pacote de controlo inicialmente
-    char * controlo = (char *) malloc(tamanho_controlo);
-    char * dados = (char * )malloc(tamanho_dados);
+    char * controlo = (char *) malloc(tamanho_controlo); // guarda a informação que irá conter um pacote de controlo
+    char * dados = (char * )malloc(tamanho_dados); // guarda a informação que irá conter um pacote de dados
     struct shell_inputs arguments; // struct que vai guardar os argumentos introduzidos
     
+    //verifica se foi introduzido pelo menos 3 argumentos, e se segundo argumento começa por /dev/ttyS
     if ( (argc < 3) || (strncmp("/dev/ttyS",argv[1],9) != 0) ) {
     printf("Invalid inputs, the template command is:\n./app /dev/ttySx file_name (--frame-size 1000 -B 38400)\n");
     exit(1);
@@ -33,13 +34,13 @@ int main(int argc, char** argv)
     
     //atribuição dos argumentos lidos
     frame_size = arguments.frame_size;
-    if (frame_size > 65535){
+    if (frame_size > 65535){ // caso o frame_size exceda o tamanho máximo
         printf("Frame size exceeded!\n");
         exit(-1);
     }
     nome_ficheiro = arguments.file_name; 
     BAUDRATE = arguments.baudrate;
-    porta = atoi(&arguments.port[9]); // numero da porta de comunicação tty
+    porta = atoi(&arguments.port[9]); 
     
     fd = llopen(porta);
 
@@ -85,7 +86,7 @@ int main(int argc, char** argv)
         controlo= (char * ) realloc (controlo,tamanho_controlo);//necessário alocar mais memória para guardar o nome do ficheiro
         memcpy(controlo+5+num_blocos_tamanho,nome_ficheiro,strlen(nome_ficheiro));
 
-
+        //envia o pacote de controlo START ao receptor
         int bytesEscritos = llwrite(fd, controlo,tamanho_controlo);
 
         if ( bytesEscritos < 0) // se ocorreu um erro no llwrite
@@ -108,6 +109,7 @@ int main(int argc, char** argv)
                 dados[4+i] = buffer[i];
             }
             
+            //envia o pacote de dados para o receptor
             bytesEscritos = llwrite(fd,dados,tamanho_dados+bytesLidos);
 
             if ( bytesEscritos < 0){ // se ocorreu um erro no llwrite
@@ -116,22 +118,25 @@ int main(int argc, char** argv)
                 exit(-1);
             }
 
-            num_sequencia++; //incrementar o numero de sequência
+            if(num_sequencia == 255) // caso o numero de sequencia já tenha chegado ao máximo
+                num_sequencia = 0;
+            else
+                num_sequencia++; //incrementar o numero de sequência
             
-            bytesLidos = fread(buffer,1,frame_size,ficheiro);
-                        
+            bytesLidos = fread(buffer,1,frame_size,ficheiro);          
         } 
         
         //contrução do pacote de controlo END
         controlo[0] = END;
 
+        //envia o pacote de controlo END para o receptor
         bytesEscritos = llwrite(fd, controlo,tamanho_controlo);
 
         if ( bytesEscritos < 0) // se ocorreu um erro no llwrite
             exit(-1);
         
 
-    }else{
+    }else{ // caso do ficheiro indicado pelo utilizador não existir
         printf("O ficheiro %s não existe.\n",nome_ficheiro);
         free(controlo);
         free(dados);
@@ -139,6 +144,7 @@ int main(int argc, char** argv)
         exit(-1);
     }
 
+    //fecha o ficheiro lido
     fclose(ficheiro);
 
     //verificar se a porta serie foi fechada com sucesso
@@ -148,7 +154,9 @@ int main(int argc, char** argv)
         exit(-1);
     }
 
+    //liberta a memoria utilizada
     free(controlo);
     free(dados);
+    
     return 0;
 }
