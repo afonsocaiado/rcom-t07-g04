@@ -20,7 +20,7 @@ Prefixos:
 $ ./app /dev/ttySx file_name [ --frame-size 1000 -B 38400]
 
 #### Remover o executavel
-$ make clear
+$ make clean
 
 ## Receptor
 
@@ -39,4 +39,4 @@ Prefixos:
 $ ./app /dev/ttySx [-B 38400]
 
 #### Remover o executavel
-$ make clear
+$ make clean
