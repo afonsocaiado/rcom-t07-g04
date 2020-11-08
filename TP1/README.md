@@ -32,7 +32,7 @@ $ make again
 
 #### Correr Executavel
 O receptor tem de ser executado com 2 argumentos (incluindo ./app), e a ordem tem de ser respeitada.<br>
-O baudrate é opcional, e se não for colocado ele assumem um valor default pré-definido. (baudrate = 38400)<br>
+O baudrate é opcional, e se não for colocado ele assume um valor default pré-definido. (baudrate = 38400)<br>
 Prefixos:
 - "-B" para o baudrate.
 
