@@ -34,7 +34,6 @@ void atende()
   if (num_tentativas<=MAX_TENTATIVAS)
 	  printf("Time Out...%i\n",num_tentativas);
   time_out = TRUE;
-  alarm(TEMPO_ESPERA);
 }
 
 /**
@@ -193,6 +192,7 @@ int llopen(int porta){
     if (time_out){ 
       sendFrame_S_U(fd,AC,SET);
       printf("Sended: SET\n");
+      alarm(TEMPO_ESPERA);
       time_out = FALSE;
     }
     
@@ -325,6 +325,7 @@ int llwrite(int fd,char * buffer,int length){
     if (time_out){ // se ocorer um time out o sender irá enviar novamente a informação
       sendFrame_I(fd,trama,trama_length);
       printf("Sended: Ns=%i\n",Ns);
+      alarm(TEMPO_ESPERA);
       time_out = FALSE;
     }
 
@@ -372,6 +373,8 @@ int llwrite(int fd,char * buffer,int length){
             printf("Received: REJ0\n");
             sendFrame_I(fd,trama,trama_length);
             printf("Sended: Ns=%i\n",Ns);
+            alarm(DESLIGAR_ALARME);
+            alarm(TEMPO_ESPERA);
             actualState = START;
           }
         }else{
@@ -382,6 +385,8 @@ int llwrite(int fd,char * buffer,int length){
             printf("Received: REJ1\n");
             sendFrame_I(fd,trama,trama_length);
             printf("Sended: Ns=%i\n",Ns);
+            alarm(DESLIGAR_ALARME);
+            alarm(TEMPO_ESPERA);
             actualState = START;
           }
         }
@@ -441,6 +446,7 @@ int llclose(int fd){
     if (time_out){ // se ocorer um time out o sender irá enviar novamente a informação
       sendFrame_S_U(fd,AC,DISC);
       printf("Sended: DISC\n");
+      alarm(TEMPO_ESPERA);
       time_out = FALSE;
     }
     
