@@ -89,7 +89,8 @@ int main(int argc, char** argv)
 
   // cria ficheiro com o nome obtido no pacote START
   FILE *file = fopen(nome_ficheiro, "wb+");
-  clock_t ini, fim;
+  clock_t ini, fim, aux;
+  aux = sysconf(_SC_CLK_TCK);
   incial = time(NULL);//guarda o tempo atual em incial
   ini = clock();
   //enquanto houver informação para ler
@@ -126,7 +127,7 @@ int main(int argc, char** argv)
   }
 
   //imprime o tamanho do ficheiro e o tempo que demorou a ser transferido
-  printf("File size: %d bytes\nTransfer time: %.2f sec - %.3f\n", tamanho_int,difftime(final,incial),(double)(fim-ini)/CLOCKS_PER_SEC);
+  printf("File size: %d bytes\nTransfer time: %.2f sec - %.3f\n", tamanho_int,difftime(final,incial),(double)(fim-ini)/aux);
   
   //fecha o ficheiro escrito
   fclose(file);
