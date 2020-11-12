@@ -89,9 +89,9 @@ int main(int argc, char** argv)
 
   // cria ficheiro com o nome obtido no pacote START
   FILE *file = fopen(nome_ficheiro, "wb+");
-
+  clock_t ini, fim;
   incial = time(NULL);//guarda o tempo atual em incial
-
+  ini = clock();
   //enquanto houver informação para ler
   while (TRUE)
   {
@@ -105,6 +105,7 @@ int main(int argc, char** argv)
     if (isAtEnd(start, sizeOfStart, mensagemPronta, sizeMessage)) // se leu a trama de END
     {
       final = time(NULL); //guarda o tempo atual em final
+      fim = clock();
       printf("End message received\n");
       break;
     }
@@ -125,7 +126,7 @@ int main(int argc, char** argv)
   }
 
   //imprime o tamanho do ficheiro e o tempo que demorou a ser transferido
-  printf("File size: %d bytes\nTransfer time: %.2f sec\n", tamanho_int,difftime(final,incial));
+  printf("File size: %d bytes\nTransfer time: %.2f sec - %.3f\n", tamanho_int,difftime(final,incial),(double)(fim-ini)/CLOCKS_PER_SEC);
   
   //fecha o ficheiro escrito
   fclose(file);
