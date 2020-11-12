@@ -1,6 +1,6 @@
 #include "protocol_receiver.c"
 #include "../app_utils.c"
-
+#include <math.h>
 /**
  * funcao que verifica se o pacote recebido é o pacote END
  * @param start pacote START recebida anteriormente
@@ -89,10 +89,9 @@ int main(int argc, char** argv)
 
   // cria ficheiro com o nome obtido no pacote START
   FILE *file = fopen(nome_ficheiro, "wb+");
-  clock_t ini, fim, aux;
-  aux = sysconf(_SC_CLK_TCK);
+  struct timespec before , after;
   incial = time(NULL);//guarda o tempo atual em incial
-  ini = clock();
+  clock_gettime(CLOCK_MONOTONIC,&before);
   //enquanto houver informação para ler
   while (TRUE)
   {
@@ -106,7 +105,7 @@ int main(int argc, char** argv)
     if (isAtEnd(start, sizeOfStart, mensagemPronta, sizeMessage)) // se leu a trama de END
     {
       final = time(NULL); //guarda o tempo atual em final
-      fim = clock();
+      clock_gettime(CLOCK_MONOTONIC,&after);
       printf("End message received\n");
       break;
     }
@@ -126,11 +125,15 @@ int main(int argc, char** argv)
     fwrite(messageRemovedHeader, 1, sizeWithoutHeader, file);
   }
 
+  u_int64_t before_ns = (before.tv_sec * 1000000000) + before.tv_nsec;
+  u_int64_t after_ns = (after.tv_sec * 1000000000) + after.tv_nsec;
+
+
   //imprime o tamanho do ficheiro e o tempo que demorou a ser transferido
-  printf("File size: %d bytes\nTransfer time: %.2f sec - %.3f\n", tamanho_int,difftime(final,incial),(double)(fim-ini)/aux);
-  
+  printf("File size: %d bytes\nTransfer time: %.2f sec\n", tamanho_int,difftime(final,incial));
+  printf("Time : %f\n",((after_ns - before_ns)*pow(10,-9)));
   //fecha o ficheiro escrito
-  fclose(file);
+  fclose(file);  
 
 
   //fecha a ligação com a porta série 
