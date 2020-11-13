@@ -33,6 +33,28 @@ int isAtEnd(unsigned char *start, int sizeStart, unsigned char *end, int sizeEnd
   }
 }
 
+/**
+ * função que vai imprimir no ecrã toda a informação para o calculo da eficiencia
+ * @param data struct que contem toda a informação necessário para o calculo da eficiencia
+ */ 
+void printEfficiencyDATA(struct dataForEfficiency data){
+  double T_prop = 0.0; //vai guardar o T_prop médio
+  int Frame_size = 0; //vai guardar o frame_size médio
+  for (size_t i = 0; i < data.arraySize; i++)
+  {
+    T_prop += data.Tprop[i];
+    Frame_size+= data.frame_size[i];
+  }
+  T_prop = T_prop/data.arraySize;
+  Frame_size = Frame_size/data.arraySize;
+  printf("---------- Efficiency Data --------\n");
+  printf("Tprop: %f\n",T_prop);
+  printf("BaudRate: %s\n",data.baudrate);
+  printf("Frame Size: %i\n",Frame_size);
+  printf("FER : %f\n",data.FER);
+  printf("-----------------------------------\n");
+}
+
 int main(int argc, char** argv)
 {
   int fd,porta; // descritor da ligacao de dados (fd) e porta serie (porta)
@@ -40,8 +62,10 @@ int main(int argc, char** argv)
   int sizeMessage = 0; // tamanho do pacote
   int sizeOfStart = 0; // tamanho do pacote START
   unsigned char start[100]; // variavel que guarda o pacote START
-  time_t incial,final; // inicial vai guardar o tempo de quando começa a receber informação, e final vai guardar o tempo de quando acabar de transferir a informação
+  struct timespec before , after, inicio, fim; // before vai guardar o tempo de quando começa a receber informação, e after vai guardar o tempo de quando acabar de transferir a informação
   struct shell_inputs arguments; // struct que vai guardar os argumentos introduzidos
+  struct dataForEfficiency data; //struct que vai guardar os dados necessários para o calculo da eficiencia
+  u_int64_t before_ns,after_ns,inicio_ns,fim_ns; // vai guardar os tempos com grande precisão
   
   //verifica se pelo menos tem 2 argumentos, e se o segundo começa com /dev/ttyS
   if ( (argc < 2) || (strncmp("/dev/ttyS",argv[1],9) != 0) ){
@@ -56,6 +80,8 @@ int main(int argc, char** argv)
 
   //atribuição dos argumentos lidos
   BAUDRATE = arguments.baudrate;
+  strcpy(data.baudrate , arguments.baud);
+  data.arraySize = 0;
   porta = atoi(&arguments.port[9]);
 
   fd = llopen(porta);
@@ -89,14 +115,18 @@ int main(int argc, char** argv)
 
   // cria ficheiro com o nome obtido no pacote START
   FILE *file = fopen(nome_ficheiro, "wb+");
-  struct timespec before , after;
-  incial = time(NULL);//guarda o tempo atual em incial
-  clock_gettime(CLOCK_MONOTONIC,&before);
+  
+  clock_gettime(CLOCK_MONOTONIC,&before);//guarda o tempo atual em before
+
   //enquanto houver informação para ler
   while (TRUE)
   {
-    sizeMessage = llread(fd, mensagemPronta); //lê de fd um pacote de informação 
+    clock_gettime(CLOCK_MONOTONIC,&inicio);//guarda o tempo de quando começa a receber uma trama I
 
+    sizeMessage = llread(fd, mensagemPronta); //lê de fd um pacote de informação
+
+    clock_gettime(CLOCK_MONOTONIC,&fim);//guarda o tempo de quando acaba de receber uma trama I
+   
     if(sizeMessage == -1) // se ocorreu algum erro no llread
       exit(-1);
     if (sizeMessage == 0)
@@ -104,11 +134,19 @@ int main(int argc, char** argv)
 
     if (isAtEnd(start, sizeOfStart, mensagemPronta, sizeMessage)) // se leu a trama de END
     {
-      final = time(NULL); //guarda o tempo atual em final
-      clock_gettime(CLOCK_MONOTONIC,&after);
+      clock_gettime(CLOCK_MONOTONIC,&after);//guarda o tempo atual em after
       printf("End message received\n");
       break;
     }
+
+    data.frame_size[data.arraySize] = sizeMessage + 6; //frame_size = trama_I_size 
+
+    //pré calculos do Tprop
+    inicio_ns = (inicio.tv_sec * 1000000000) + inicio.tv_nsec;
+    fim_ns = (fim.tv_sec * 1000000000) + fim.tv_nsec;
+
+    data.Tprop[data.arraySize] = (fim_ns - inicio_ns) * pow(10,-9);
+    data.arraySize++;
 
     int sizeWithoutHeader = sizeMessage - 4; //guarda o tamanho do pacote de dados sem o cabeçalho 
 
@@ -124,14 +162,20 @@ int main(int argc, char** argv)
     //escreve no ficheiro os dados recebidos 
     fwrite(messageRemovedHeader, 1, sizeWithoutHeader, file);
   }
+  
+  //pré calculo do tempo decorrido com maior precisão 
+  before_ns = (before.tv_sec * 1000000000) + before.tv_nsec;
+  after_ns = (after.tv_sec * 1000000000) + after.tv_nsec;
 
-  u_int64_t before_ns = (before.tv_sec * 1000000000) + before.tv_nsec;
-  u_int64_t after_ns = (after.tv_sec * 1000000000) + after.tv_nsec;
-
+  //tempo decorrido em segundos
+  double elapsedT = (after_ns - before_ns)*pow(10,-9);
 
   //imprime o tamanho do ficheiro e o tempo que demorou a ser transferido
-  printf("File size: %d bytes\nTransfer time: %.2f sec\n", tamanho_int,difftime(final,incial));
-  printf("Time : %f\n",((after_ns - before_ns)*pow(10,-9)));
+  printf("File size: %d bytes\nTransfer time: %.4f sec\n", tamanho_int,elapsedT);
+
+  //imprime informação necessária para o calculo da eficiencia
+  printEfficiencyDATA(data);
+
   //fecha o ficheiro escrito
   fclose(file);  
 
