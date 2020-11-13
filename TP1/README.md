@@ -1,6 +1,6 @@
 # Instruções
 
-## Emisor
+## Emissor
 
 #### Compilar
 $ make app
@@ -9,7 +9,7 @@ $ make app
 $ make again
 
 #### Correr Executavel
-O emisor tem de ser executado com 3 argumentos (incluindo ./app), e a ordem tem de ser respeitada.<br>
+O emissor tem de ser executado com 3 argumentos (incluindo ./app), e a ordem tem de ser respeitada.<br>
 O tamanho da trama e o baudrate são opcionais, e se não forem colocados eles assumem um valor default pré-definido.<br>
 (frame_size = 1000 e baudrate = 38400)<br>
 A ordem do tamanho da trama e do baudrate não presica de ser respeitada mas para cada um dos argumentos é necessário colocar um prefixo para que o programa não dê erro.<br>

@@ -14,7 +14,32 @@ enum A { AR = 0x03 , AC = 0x01 }; // valores possiveis do campo A na trama
 
 speed_t BAUDRATE; // baudrate que irá ser utilizado na ligação série 
 int esperado = 0; //numero de sequencia esperado
+int Delay; //atraso introduzido no processamento dos dados no llread
+int FER; //frame error ratio
 struct termios oldtio,newtio; //variaveis utilizadas para guardar a configuracao da ligacao pelo cabo serie
+
+
+/**
+ * função que vai gerar erros na trama ou atrasos no processamento de cada trama recebida 
+ * @param readed variavel que contem um byte lido da trama que irá sofrer alteração forçada para gerar erros
+ */ 
+void testEfficiency(unsigned char * readed){
+  //gerar um numero de 0 a 100
+  srand(time(NULL));
+  int number = rand() %100;
+
+  if (FER != 0){// se o FER não for 0
+    //o readed só vai ver alterado se number tiver um valor menor que FER*100
+    if (number < FER){
+      *readed = 0x00;
+    }
+  } 
+  if (Delay != 0){ // se o delay não for 0
+    if (number <30){
+      sleep(1); //atraso de 1 segundo
+    }
+  }
+}
 
 /**
  * funcao responsavel por abir a ligação série, ler a trama SET e devolver a trama UA
@@ -115,7 +140,7 @@ int llopen(int porta) {
   }
   printf("Received: SET\n");
 
-  //responde ao emisor com UA
+  //responde ao emissor com UA
   sendFrame_S_U(fd,AR,UA);
   printf("Sended: UA\n");
 
@@ -125,7 +150,7 @@ int llopen(int porta) {
 /**
 * funcao que le as tramas de informacao e faz destuffing
 * @param fd identificador da ligacao de dados
-* @param message array que irá receber a informação transmitida pelo emisor
+* @param message array que irá receber a informação transmitida pelo emissor
 * @return retorna o numero de bytes recebidos ou -1 em caso de erro
 **/
 int llread(int fd,unsigned char * message) {
@@ -142,6 +167,7 @@ int llread(int fd,unsigned char * message) {
   while (actualState != STOP)
   {
     read(fd,&readed,1); //le um byte da informacao recebida
+    testEfficiency(&readed);
     switch (actualState) // maquina de estados que valida a informacao recebida
     {
     case START:{ // recebe byte FLAG

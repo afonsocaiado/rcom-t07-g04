@@ -17,7 +17,7 @@ enum A { AC = 0x03 , AR = 0x01 }; // valores possiveis do campo A na trama
 
 speed_t BAUDRATE; // baudrate que irá ser utilizado na ligação série 
 
-int Ns = 0; // numero de sequencia da trama do emisor
+int Ns = 0; // numero de sequencia da trama do emissor
 int Nr = 1; // numero de sequencia da trama do receptor
 
 int time_out =FALSE; // flag que indica se ocorreu um time out
@@ -275,7 +275,7 @@ int llwrite(int fd,char * buffer,int length){
 
   char trama[trama_length]; //array que vai guardar a trama a ser enviada pelo emissor
 
-  //contrução da trama I a ser enviado pelo emisor
+  //contrução da trama I a ser enviado pelo emissor
   trama[0] = FLAG;
   trama[1] = AC;
   if (Ns)
@@ -501,7 +501,7 @@ int llclose(int fd){
   sendFrame_S_U(fd,AR,UA);
   printf("Sended: UA\n");
 
-  sleep(3); // importante para garantir que o receptor leia a trama UA antes que o emisor fechar a ligação
+  sleep(3); // importante para garantir que o receptor leia a trama UA antes que o emissor fechar a ligação
 
   if ( tcsetattr(fd,TCSANOW,&oldtio) == -1) {
     perror("tcsetattr");

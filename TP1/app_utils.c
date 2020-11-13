@@ -12,17 +12,6 @@ struct baud_rate{
   char *bauds; //baudrate em string
 };
 
-//struct que vai guardar os dados necessários para o calculo da eficiência
-struct dataForEfficiency
-{
-  double Tprop[256]; //array que contem os tempos de propagação
-  int arraySize; //tamanho do array Tprop e do array frame_size
-  int frame_size[256]; //tamanho da trama
-  char baudrate[10]; //baudrate utilizado
-  double FER; //frame error ratio
-};
-
-
 //guarda os parametros passados pela shell
 struct shell_inputs
 {
@@ -30,7 +19,8 @@ struct shell_inputs
   char file_name[200]; //nome do ficheiro a enviar
   int frame_size; //tamanho maximo da quantidade de dados que devem ser enviados de uma vez
   speed_t baudrate; // baudrate da ligação serie
-  char baud[10]; //baudrate em string
+  int FER; //frame error ratio 
+  int atraso; //boleano que indica se há ou não há atraso
 };
 
 //struct que vai guardar os baudrates para melhor acessibilidade 
@@ -76,12 +66,12 @@ speed_t getBaudRate(char * rate){
  * @param argc tamanho do array argv
  * @param argv array que contém os argumentos introduzidos
  * @param arguments struct que vai guardar os valores dos argumentos introduzidos
- * @param status flag que indica se é o emisor ou o receptor
+ * @param status flag que indica se é o emissor ou o receptor
  * @return 0 em caso de sucesso e -1 caso contrário 
  **/
 int readArgvValues(int argc ,char *argv[],struct shell_inputs *arguments, int status){
   strcpy(arguments->port,argv[1]);
-  if(status){ // se for o emisor 
+  if(status){ // se for o emissor 
     strcpy(arguments->file_name,argv[2]);
 
     //coloca os valores default de baudrate e frame size
@@ -112,21 +102,31 @@ int readArgvValues(int argc ,char *argv[],struct shell_inputs *arguments, int st
   }else{ // se for o receptor
     //coloca o valor default do baudrate
     arguments->baudrate = DEFAULT_BAUDRATE;
-    strcpy(arguments->baud,"38400");
+    arguments->FER = 0; //valor default de FER
+    arguments->atraso = 0; //valor default de atraso
 
     //percorre os restantes valores de argv
     for (size_t i = 2; i < argc; i++)
     {
       if ( (strcmp(argv[i],"-B") == 0) && ((i+1)<argc) ){ // lê o valor da baudrate introduzido 
         arguments->baudrate = getBaudRate(argv[i+1]);
-        strcpy(arguments->baud , argv[i+1]);
         if (arguments->baudrate == -1){ // se o valor de baudrate estiver errado
-          printf("Invalid Baudrate, the template command is:\n./app /dev/ttySx [-B 38400]\n");
+          printf("Invalid Baudrate, the template command is:\n./app /dev/ttySx [-B 38400 -FER 0 -D 0]\n");
+          return -1;
+        }
+        i++; 
+      }else if ( (strcmp(argv[i],"-FER") == 0) && ((i+1)<argc) ){ // lê o valor de FER introduzido 
+        arguments->FER = atoi(argv[i+1]);
+        if ( (arguments->FER > 100) || (arguments->FER < 0) ){ // se o valor de FER estiver errado
+          printf("Invalid FER, the template command is:\n./app /dev/ttySx [-B 38400 -FER 0 -D 0]\n");
           return -1;
         }
         i++;
+      }else if ( (strcmp(argv[i],"-D") == 0) && ((i+1)<argc) ){ // lê o valor de atraso introduzido 
+        arguments->atraso = 1;
+        i++;
       }else{ // se existir um argumento invalido
-        printf("Invalid inputs, the template command is:\n./app /dev/ttySx [-B 38400]\n");
+        printf("Invalid inputs, the template command is:\n./app /dev/ttySx [-B 38400 -FER 0 -D 0]\n");
         return -1;
       }    
     }
