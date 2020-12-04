@@ -94,14 +94,13 @@ int main(int argc,char*argv[]){
 
     struct urlInfo readedUrl = readUrlFromArgv(argv[1]);
 
-    
+    /*
     printf("%s\n",readedUrl.protocol);
     printf("%s\n",readedUrl.username);
     printf("%s\n",readedUrl.password);
     printf("%s\n",readedUrl.host);
     printf("%s\n",readedUrl.path);
-    printf("%s\n",readedUrl.filename);
+    printf("%s\n",readedUrl.filename);*/
 
-    //return downloadFileFromSever(readedUrl);
-    return 0;
+    return downloadFileFromSever(readedUrl);
 }
