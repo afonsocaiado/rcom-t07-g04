@@ -32,6 +32,7 @@ int downloadFileFromSever(struct urlInfo url){
 	int	sockfd;
 	struct	sockaddr_in server_addr;
 	char *ip = getIp(url.host);  
+	char buf[200];
 	int	bytes;
 	
 	printf("Ip: %s\n",ip);
@@ -45,7 +46,7 @@ int downloadFileFromSever(struct urlInfo url){
 	/*open an TCP socket*/
 	if ((sockfd = socket(AF_INET,SOCK_STREAM,0)) < 0) {
     		perror("socket()");
-        	exit(0);
+        	exit(-7);
     	}
 		
 	/*connect to the server*/
@@ -53,12 +54,13 @@ int downloadFileFromSever(struct urlInfo url){
 	           (struct sockaddr *)&server_addr, 
 		   sizeof(server_addr)) < 0){
         	perror("connect()");
-		exit(0);
+		exit(-8);
 	}
 
     	/*send a string to the server*/
-	//bytes = write(sockfd, buf, strlen(buf));
-	//printf("Bytes escritos %d\n", bytes);
+	bytes = read(sockfd, buf, 200);
+	printf("Bytes escritos %d\n", bytes);
+	printf("%s\n",buf);
 
 	close(sockfd);
 	exit(0);

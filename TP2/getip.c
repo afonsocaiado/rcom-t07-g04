@@ -25,7 +25,7 @@ char* getIp(char * host)
 
     if ((h=gethostbyname(host)) == NULL) {  
         herror("gethostbyname");
-        exit(1);
+        exit(-6);
     }
 
     //printf("Host name  : %s\n", h->h_name);

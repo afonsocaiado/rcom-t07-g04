@@ -17,43 +17,42 @@ struct urlInfo readUrlFromArgv(char * arg){
     // verificar se a parte inicial do url está correta
     if ( strncmp("ftp://",arg,6) != 0){
         printf("Error: invalid url format try ftp://[<user>:<password>@]<host>/<url-path>\n");
-        exit(1);
+        exit(-2);
     }
 
     strcpy(ret.protocol,"ftp"); // atribuição do protocolo
 
     char * rest = &arg[6]; // retira de arg o que já foi analisado
 
-    char * userAndPassStart = strchr(rest,'['); // apontador para o inicio da parte onde se encontra o username e a password
     char * userAndPassMidle = strchr(rest,':'); // apontador para o meio do username e password
-    char * userAndPassEnd = strstr(rest,"@]"); // apontador para o fim da parte onde se encontra o username e a password
+    char * userAndPassEnd = strchr(rest,'@'); // apontador para o fim da parte onde se encontra o username e a password
 
-    if ( (userAndPassStart == NULL) && (userAndPassEnd==NULL) && (userAndPassMidle == NULL) ){ // se estiverem em falta os dois limitadores do username e da password
+    if ( (userAndPassEnd==NULL) && (userAndPassMidle == NULL) ){ // se estiverem em falta os dois limitadores do username e da password
         strcpy(ret.username,"anonymous"); // se não tem user nem pass então usar anonymous
         strcpy(ret.password,"rcom"); // pode ser uma password qualquer
-    } else if ( (userAndPassStart == NULL) || (userAndPassEnd==NULL) || (userAndPassMidle == NULL)){ // se estiver em falta um dos limitadores do username e da password
+    } else if ( (userAndPassEnd==NULL) || (userAndPassMidle == NULL)){ // se estiver em falta um dos limitadores do username e da password
         printf("Error: invalid url username and password try ftp://[<user>:<password>@]<host>/<url-path>\n");
-        exit(2);
+        exit(-3);
     }else{
-        int lenUser = (userAndPassMidle - userAndPassStart) -1; // calcular o tamanho do username
+        int lenUser = (userAndPassMidle-rest); // calcular o tamanho do username
         int lenPass = (userAndPassEnd - userAndPassMidle) -1; // calcular o tamanho da password
 
-        strncpy(ret.username,rest+1,lenUser); // atribuir o username
+        strncpy(ret.username,rest,lenUser); // atribuir o username
         strncpy(ret.password,userAndPassMidle+1,lenPass); // atribuir a password
 
-        rest = (userAndPassEnd+2); // colocar no rest o que falta analisar
+        rest = (userAndPassEnd+1); // colocar no rest o que falta analisar
     }
 
     char * primeiraBarra = strchr(rest,'/'); // apontador para o fim do host e o inicio do path
     
     if ( primeiraBarra == NULL){ // verifica se não existe nenhuma barra a dividir o host do path
         printf("Error: invalid url format try ftp://[<user>:<password>@]<host>/<url-path>\n");
-        exit(4);
+        exit(-4);
     }
     
     if( primeiraBarra == rest){ // verifica se o host é vazio
         printf("Error: invalid url host try ftp://[<user>:<password>@]<host>/<url-path>\n");
-        exit(5);
+        exit(-5);
     }
     
     int lenHost = primeiraBarra - rest ; // calcular o tamanho do host
@@ -90,18 +89,19 @@ int main(int argc,char*argv[]){
 
     if (argc != 2){ // verifica se foram introduzidos na linha de comandos um numero de argumentos diferente de 2
         printf("Error: invalid number of arguments, try ./download <url>\n");
-        exit(1);
+        exit(-1);
     }
 
     struct urlInfo readedUrl = readUrlFromArgv(argv[1]);
 
-    /*
+    
     printf("%s\n",readedUrl.protocol);
     printf("%s\n",readedUrl.username);
     printf("%s\n",readedUrl.password);
     printf("%s\n",readedUrl.host);
     printf("%s\n",readedUrl.path);
-    printf("%s\n",readedUrl.filename);*/
+    printf("%s\n",readedUrl.filename);
 
-    return downloadFileFromSever(readedUrl);
+    //return downloadFileFromSever(readedUrl);
+    return 0;
 }
