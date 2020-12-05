@@ -40,13 +40,34 @@ int reachedTheEnd(char * buf){
 	return 0;
 }
 
+/**
+ * a partir da resposta do servidor ao comando pasv retira e calcula a porta
+ * @param buf string que contém a resposta do servidor ao comando pasv
+ * @return porta de ligação 
+ */ 
+int getPort(char * buf){
+	char * inicioDoIp = strchr(buf,'(');
+	int portaParteA , portaParteB;
 
+	sscanf(inicioDoIp,"(%*d,%*d,%*d,%*d,%d,%d",&portaParteA,&portaParteB);
+
+	int porta = portaParteA*256 + portaParteB;
+
+	return porta;
+}
+
+/**
+ * faz download do ficheiro especificado pelo utilizador 
+ * @param url struct que contém toda a informação necessária para o download do ficheiro
+ * @return 0 em caso de sucesso outro em caso de erro
+ */ 
 int downloadFileFromSever(struct urlInfo url){
 
-	int	sockfd;
+	int	sockfdA, sockfdB;
 	struct	sockaddr_in server_addr;
 	char *ip = getIp(url.host);  // obter o ip a partir do host
 	char buf[1024]; 
+	int bytes; // indica o numero de bytes lidos ou escritos
 	
 	printf("Ip: %s\n",ip);
 	
@@ -57,13 +78,13 @@ int downloadFileFromSever(struct urlInfo url){
 	server_addr.sin_port = htons(SERVER_PORT);		/*server TCP port must be network byte ordered */
     
 	/*open an TCP socket*/
-	if ((sockfd = socket(AF_INET,SOCK_STREAM ,0)) < 0) {
+	if ((sockfdA = socket(AF_INET,SOCK_STREAM ,0)) < 0) {
     		perror("socket()");
         	exit(-7);
     	}
 		
 	/*connect to the server*/
-    	if(connect(sockfd, 
+    	if(connect(sockfdA, 
 	           (struct sockaddr *)&server_addr, 
 		   sizeof(server_addr)) < 0){
         	perror("connect()");
@@ -74,7 +95,7 @@ int downloadFileFromSever(struct urlInfo url){
 	while (1)
 	{
 		bzero(buf,sizeof(buf)); // limpar o buffer
-		read(sockfd, buf, 1024);
+		read(sockfdA, buf, 1024);
 		printf("%s",buf);
 
 		if (reachedTheEnd(buf)){ // se chegou ao fim da mensagem 
@@ -85,49 +106,139 @@ int downloadFileFromSever(struct urlInfo url){
 	// ENVIAR USER
     char username[7 + strlen(url.username)]; // string que vai guardar o comando para introduzir o username
 	sprintf(username,"user %s\r\n",url.username); // contrução do comando user
-	write(sockfd, username, sizeof(username)); // enviar o comando user <username>
+	write(sockfdA, username, sizeof(username)); // enviar o comando user <username>
 	printf("%s",username);
 
 	// RESPORTA USER
 	bzero(buf,sizeof(buf)); // limpar o buffer
-	read(sockfd, buf, 1024); // ler a resposta ao comando user
+	read(sockfdA, buf, 1024); // ler a resposta ao comando user
 	printf("%s",buf);
 
 	// verificar a resposta enviada pelo servidor 
 	if (strncmp(buf,"331",3) != 0){ // se a resposta não for a desejada
-		printf("Error: incorrect username\n");
+		close(sockfdA);
 		exit(-9);
 	}
 
 	// ENVIAR PASS
 	char password[7+strlen(url.password)]; // string que vai guardar o comando para introduzir a pass
 	sprintf(password,"pass %s\r\n",url.password); // contrução do comando pass
-	write(sockfd, password, sizeof(username)); // enviar o comando pass <password>
+	write(sockfdA, password, sizeof(password)); // enviar o comando pass <password>
 	printf("%s",password);
 
 	// REPOSTA PASS	
 	bzero(buf,sizeof(buf)); // limpar o buffer
-	read(sockfd, buf, 1024); // ler a resposta ao comando pass
+	read(sockfdA, buf, 1024); // ler a resposta ao comando pass
 	printf("%s",buf);
 
 	// verificar a resposta enviada pelo servidor 
 	if (strncmp(buf,"230",3) != 0){ // se a resposta não for a desejada
-		printf("Error: incorrect password\n");
+		close(sockfdA);
 		exit(-10);
 	}
 
 	// ENVIAR PASV
-	char pasv[7];
-	sprintf(pasv,"PASV\r\n");
-	write(sockfd, pasv, strlen(pasv)); // enviar o comando pasv
+	char pasv[7]; // string que vai guardar o comando de pasv
+	sprintf(pasv,"pasv\r\n"); // construção do comando pasv
+	write(sockfdA, pasv, strlen(pasv)); // enviar o comando pasv
 	printf("%s",pasv);
 
 	// RESPOSTA PASV
 	bzero(buf,sizeof(buf)); // limpar o buffer
-	read(sockfd, buf, 1024); // ler a resposta ao comando pasv
+	read(sockfdA, buf, 1024); // ler a resposta ao comando pasv
 	printf("%s",buf);
 
-	close(sockfd);
+	// verificar a resposta enviada pelo servidor 
+	if (strncmp(buf,"227",3) != 0){ // se a resposta não for a desejada
+		close(sockfdA);
+		exit(-11);
+	}
+
+	int porta = getPort(buf);
+
+	/*server address handling*/
+	bzero((char*)&server_addr,sizeof(server_addr));
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_addr.s_addr = inet_addr(ip);	/*32 bit Internet address network byte ordered*/
+	server_addr.sin_port = htons(porta);		/*server TCP port must be network byte ordered */
+    
+	/*open an TCP socket*/
+	if ((sockfdB = socket(AF_INET,SOCK_STREAM ,0)) < 0) {
+    		perror("socket()");
+        	exit(-12);
+    	}
+		
+	/*connect to the server*/
+    	if(connect(sockfdB, 
+	           (struct sockaddr *)&server_addr, 
+		   sizeof(server_addr)) < 0){
+        	perror("connect()");
+		exit(-13);
+	}
+
+	if (strlen(url.path) != 0){
+		// ENVIAR CWD
+		char cwd[1024+6]; //string que vai conter o comando cwd juntamente como path do ficheiro
+		sprintf(cwd,"cwd %s\r\n",url.path); // contrução do comando cwd
+		write(sockfdA, cwd, strlen(cwd)); // enviar o comando cwd
+		printf("%s",cwd);
+
+		// RESPOSTA RETR
+		bzero(buf,sizeof(buf)); // limpar o buffer
+		read(sockfdA, buf, 1024); // ler a resposta ao comando cwd
+		printf("%s",buf);
+
+		// verificar a resposta enviada pelo servidor 
+		if (strncmp(buf,"250",3) != 0){ // se a resposta não for a desejada
+			close(sockfdA);
+			close(sockfdB);
+			exit(-14);
+		}
+	}
+
+	// ENVIAR RETR
+	char retr[7+strlen(url.filename)]; // string que vai guardar o comando retr juntamente com o nome do ficheiro
+	sprintf(retr,"retr %s\r\n",url.filename); // contrução do comando retr
+	write(sockfdA, retr, strlen(retr)); // enviar o comando retr
+	printf("%s",retr);
+
+	// RESPOSTA RETR
+	bzero(buf,sizeof(buf)); // limpar o buffer
+	read(sockfdA, buf, 1024); // ler a resposta ao comando retr
+	printf("%s",buf);
+
+
+	// verificar a resposta enviada pelo servidor 
+	if (strncmp(buf,"150",3) != 0){ // se a resposta não for a desejada
+		close(sockfdA);
+		close(sockfdB);
+		exit(-15);
+	}
+
+
+	FILE * file;
+	file = fopen(url.filename,"w"); // abrir o ficheiro para escrita
+
+	while (1)
+	{
+		bzero(buf,sizeof(buf)); // limpar o buffer
+		bytes = read(sockfdB, buf, 1024); // ler conteudo do ficheiro enviado
+
+		if(bytes <= 0){ // quando o ficheiro chegar ao fim 
+			break;
+		}
+
+		fwrite(buf,bytes,1,file); // escrever no ficheiro o conteudo lido 
+	}
+
+	// RESPOTA DE TRANFERENCIA COMPLETA
+	bzero(buf,sizeof(buf)); // limpar o buffer
+	read(sockfdA, buf, 1024); // ler a resposta do servidor após a transferência 
+	printf("%s",buf);
+	
+	fclose(file);
+	close(sockfdA);
+	close(sockfdB);
 	exit(0);
 }
 
