@@ -57,6 +57,18 @@ int getPort(char * buf){
 }
 
 /**
+ * pede ao utilizador para introduzir uma password 
+ * @param url struct que contem a informação obtida do url
+ */ 
+void getPassword(struct urlInfo *url){
+	printf("Password: ");
+	char password[256];
+	scanf("%s",password); // lê do sdtin a password que o utilizador inseriu
+	strncpy(url->password,password,strlen(password));
+}
+
+
+/**
  * faz download do ficheiro especificado pelo utilizador 
  * @param url struct que contém toda a informação necessária para o download do ficheiro
  * @return 0 em caso de sucesso outro em caso de erro
@@ -114,29 +126,38 @@ int downloadFileFromSever(struct urlInfo url){
 	read(sockfdA, buf, 1024); // ler a resposta ao comando user
 	printf("%s",buf);
 
-	// verificar a resposta enviada pelo servidor 
-	if (strncmp(buf,"331",3) != 0){ // se a resposta não for a desejada
-		close(sockfdA);
-		exit(-9);
+	// verificar a resposta enviada pelo servidor indica que não é necessário password
+	if (strncmp(buf,"230",3) != 0){ 
+		
+		// verificar a resposta enviada pelo servidor 
+		if (strncmp(buf,"331",3) != 0){ // se a resposta não for a desejada
+			close(sockfdA);
+			exit(-9);
+		}
+		
+		// se o utilizador não colocou a password no url
+		if ( strlen(url.password) == 0){
+			getPassword(&url);
+		}
+
+		// ENVIAR PASS
+		char password[7+strlen(url.password)]; // string que vai guardar o comando para introduzir a pass
+		sprintf(password,"pass %s\r\n",url.password); // contrução do comando pass
+		write(sockfdA, password, sizeof(password)); // enviar o comando pass <password>
+		printf("%s",password);
+
+		// REPOSTA PASS	
+		bzero(buf,sizeof(buf)); // limpar o buffer
+		read(sockfdA, buf, 1024); // ler a resposta ao comando pass
+		printf("%s",buf);
+
+		// verificar a resposta enviada pelo servidor 
+		if (strncmp(buf,"230",3) != 0){ // se a resposta não for a desejada
+			close(sockfdA);
+			exit(-10);
+		}
 	}
-
-	// ENVIAR PASS
-	char password[7+strlen(url.password)]; // string que vai guardar o comando para introduzir a pass
-	sprintf(password,"pass %s\r\n",url.password); // contrução do comando pass
-	write(sockfdA, password, sizeof(password)); // enviar o comando pass <password>
-	printf("%s",password);
-
-	// REPOSTA PASS	
-	bzero(buf,sizeof(buf)); // limpar o buffer
-	read(sockfdA, buf, 1024); // ler a resposta ao comando pass
-	printf("%s",buf);
-
-	// verificar a resposta enviada pelo servidor 
-	if (strncmp(buf,"230",3) != 0){ // se a resposta não for a desejada
-		close(sockfdA);
-		exit(-10);
-	}
-
+	
 	// ENVIAR PASV
 	char pasv[7]; // string que vai guardar o comando de pasv
 	sprintf(pasv,"pasv\r\n"); // construção do comando pasv
@@ -155,6 +176,15 @@ int downloadFileFromSever(struct urlInfo url){
 	}
 
 	int porta = getPort(buf);
+	/*
+	char mode[]= "MODE BIN\r\n";
+	write(sockfdA, mode, strlen(mode)); 
+	printf("%s",mode);
+
+	
+	bzero(buf,sizeof(buf)); 
+	read(sockfdA, buf, 1024); 
+	printf("%s",buf);*/
 
 	/*server address handling*/
 	bzero((char*)&server_addr,sizeof(server_addr));
@@ -214,7 +244,6 @@ int downloadFileFromSever(struct urlInfo url){
 		close(sockfdB);
 		exit(-15);
 	}
-
 
 	FILE * file;
 	file = fopen(url.filename,"w"); // abrir o ficheiro para escrita
