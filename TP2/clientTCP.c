@@ -49,6 +49,7 @@ int getPort(char * buf){
 	char * inicioDoIp = strchr(buf,'(');
 	int portaParteA , portaParteB;
 
+	// vai buscar a resposta do servidor apenas os ultimos dois numeros que servem para o calculo da porta
 	sscanf(inicioDoIp,"(%*d,%*d,%*d,%*d,%d,%d",&portaParteA,&portaParteB);
 
 	int porta = portaParteA*256 + portaParteB;
@@ -62,7 +63,7 @@ int getPort(char * buf){
  */ 
 void getPassword(struct urlInfo *url){
 	printf("Password: ");
-	char password[256];
+	char password[256]; // string que vai guardar a password inserida pelo utilizador
 	scanf("%s",password); // lê do sdtin a password que o utilizador inseriu
 	strncpy(url->password,password,strlen(password));
 }
@@ -176,15 +177,23 @@ int downloadFileFromSever(struct urlInfo url){
 	}
 
 	int porta = getPort(buf);
-	/*
-	char mode[]= "MODE BIN\r\n";
-	write(sockfdA, mode, strlen(mode)); 
-	printf("%s",mode);
-
 	
+	// ENVIAR TYPE I - ALTERAR PARA BINARY MODE
+	char type[]= "type I\r\n"; // string que vai guardar o comando type I
+	write(sockfdA, type, strlen(type));  // enviar comando type I
+	printf("%s",type);
+
+	// RESPOSTA TYPE I
 	bzero(buf,sizeof(buf)); 
 	read(sockfdA, buf, 1024); 
-	printf("%s",buf);*/
+	printf("%s",buf);
+
+
+	// verificar a resposta enviada pelo servidor 
+	if (strncmp(buf,"200",3) != 0){ // se a resposta não for a desejada
+		close(sockfdA);
+		exit(-12);
+	}
 
 	/*server address handling*/
 	bzero((char*)&server_addr,sizeof(server_addr));
@@ -195,7 +204,7 @@ int downloadFileFromSever(struct urlInfo url){
 	/*open an TCP socket*/
 	if ((sockfdB = socket(AF_INET,SOCK_STREAM ,0)) < 0) {
     		perror("socket()");
-        	exit(-12);
+        	exit(-13);
     	}
 		
 	/*connect to the server*/
@@ -203,7 +212,7 @@ int downloadFileFromSever(struct urlInfo url){
 	           (struct sockaddr *)&server_addr, 
 		   sizeof(server_addr)) < 0){
         	perror("connect()");
-		exit(-13);
+		exit(-14);
 	}
 
 	if (strlen(url.path) != 0){
@@ -222,7 +231,7 @@ int downloadFileFromSever(struct urlInfo url){
 		if (strncmp(buf,"250",3) != 0){ // se a resposta não for a desejada
 			close(sockfdA);
 			close(sockfdB);
-			exit(-14);
+			exit(-15);
 		}
 	}
 
@@ -242,7 +251,7 @@ int downloadFileFromSever(struct urlInfo url){
 	if (strncmp(buf,"150",3) != 0){ // se a resposta não for a desejada
 		close(sockfdA);
 		close(sockfdB);
-		exit(-15);
+		exit(-16);
 	}
 
 	FILE * file;
