@@ -228,11 +228,19 @@ int downloadFileFromSever(struct urlInfo url){
 		printf("%s",buf);
 
 		// verificar a resposta enviada pelo servidor 
-		if (strncmp(buf,"250",3) != 0){ // se a resposta não for a desejada
+		if(strncmp(buf,"250",3) != 0){ // se a resposta não for a desejada
 			close(sockfdA);
 			close(sockfdB);
 			exit(-15);
 		}
+		while (strncmp(buf,"250 ",4) != 0) // limpar as msg enviadas pelo servidor
+		{
+			// RESPOSTA RETR
+			bzero(buf,sizeof(buf)); // limpar o buffer
+			read(sockfdA, buf, 1024); // ler a resposta ao comando cwd
+			printf("%s",buf);
+		}
+		
 	}
 
 	// ENVIAR RETR
