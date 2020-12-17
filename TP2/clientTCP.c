@@ -135,6 +135,13 @@ int downloadFileFromSever(struct urlInfo url){
 			close(sockfdA);
 			exit(-9);
 		}
+		while (strncmp(buf,"331 ",4) != 0) // limpar as msg enviadas pelo servidor
+		{
+			// RESPOSTA USER
+			bzero(buf,sizeof(buf)); // limpar o buffer
+			read(sockfdA, buf, 1024); // ler a resposta 
+			printf("%s",buf);
+		}
 		
 		// se o utilizador não colocou a password no url
 		if ( strlen(url.password) == 0){
@@ -157,6 +164,13 @@ int downloadFileFromSever(struct urlInfo url){
 			close(sockfdA);
 			exit(-10);
 		}
+		while (strncmp(buf,"230 ",4) != 0) // limpar as msg enviadas pelo servidor
+		{
+			// RESPOSTA PASS
+			bzero(buf,sizeof(buf)); // limpar o buffer
+			read(sockfdA, buf, 1024); // ler a resposta 
+			printf("%s",buf);
+		}
 	}
 	
 	// ENVIAR PASV
@@ -175,7 +189,14 @@ int downloadFileFromSever(struct urlInfo url){
 		close(sockfdA);
 		exit(-11);
 	}
-
+	while (strncmp(buf,"227 ",4) != 0) // limpar as msg enviadas pelo servidor
+	{
+		// RESPOSTA PASV
+		bzero(buf,sizeof(buf)); // limpar o buffer
+		read(sockfdA, buf, 1024); // ler a resposta 
+		printf("%s",buf);
+	}
+	
 	int porta = getPort(buf);
 	
 	// ENVIAR TYPE I - ALTERAR PARA BINARY MODE
@@ -194,6 +215,14 @@ int downloadFileFromSever(struct urlInfo url){
 		close(sockfdA);
 		exit(-12);
 	}
+
+	while (strncmp(buf,"200 ",4) != 0) // limpar as msg enviadas pelo servidor
+	{
+		// RESPOSTA TYPE
+		bzero(buf,sizeof(buf)); // limpar o buffer
+		read(sockfdA, buf, 1024); // ler a resposta 
+		printf("%s",buf);
+	}	
 
 	/*server address handling*/
 	bzero((char*)&server_addr,sizeof(server_addr));
@@ -222,7 +251,7 @@ int downloadFileFromSever(struct urlInfo url){
 		write(sockfdA, cwd, strlen(cwd)); // enviar o comando cwd
 		printf("%s",cwd);
 
-		// RESPOSTA RETR
+		// RESPOSTA CWD
 		bzero(buf,sizeof(buf)); // limpar o buffer
 		read(sockfdA, buf, 1024); // ler a resposta ao comando cwd
 		printf("%s",buf);
@@ -235,9 +264,9 @@ int downloadFileFromSever(struct urlInfo url){
 		}
 		while (strncmp(buf,"250 ",4) != 0) // limpar as msg enviadas pelo servidor
 		{
-			// RESPOSTA RETR
+			// RESPOSTA CWD
 			bzero(buf,sizeof(buf)); // limpar o buffer
-			read(sockfdA, buf, 1024); // ler a resposta ao comando cwd
+			read(sockfdA, buf, 1024); // ler a resposta 
 			printf("%s",buf);
 		}
 		
@@ -260,6 +289,13 @@ int downloadFileFromSever(struct urlInfo url){
 		close(sockfdA);
 		close(sockfdB);
 		exit(-16);
+	}
+	while (strncmp(buf,"150 ",4) != 0) // limpar as msg enviadas pelo servidor
+	{
+		// RESPOSTA RETR
+		bzero(buf,sizeof(buf)); // limpar o buffer
+		read(sockfdA, buf, 1024); // ler a resposta
+		printf("%s",buf);
 	}
 
 	FILE * file;

@@ -61,9 +61,11 @@ struct urlInfo readUrlFromArgv(char * arg){
         exit(-5);
     }
     
-    int lenHost = primeiraBarra - rest ; // calcular o tamanho do host
+    int lenHost = primeiraBarra - rest; // calcular o tamanho do host
+    char host[254];
+    strncpy(host,rest,lenHost);
+    strncpy(ret.host,host,strlen(host)); // atribuir o host
     
-    strncpy(ret.host,rest,lenHost); // atribuir o host
     
     rest = primeiraBarra+1; // colocar no rest o que falta analisar
 
@@ -105,8 +107,10 @@ int main(int argc,char*argv[]){
     printf("%s\n",readedUrl.username);
     printf("%s\n",readedUrl.password);
     printf("%s\n",readedUrl.host);
+    printf("%li",strlen(readedUrl.host));
     printf("%s\n",readedUrl.path);
-    printf("%s\n",readedUrl.filename);*/
-   
+    printf("%s\n",readedUrl.filename);
+    printf("%li",strlen(readedUrl.filename));*/
+    
     return downloadFileFromSever(readedUrl);
 }
