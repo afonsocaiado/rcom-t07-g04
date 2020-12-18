@@ -29,12 +29,13 @@ struct urlInfo
 /**
  * função que verifica se chegou ao fim do cabeçalho enviado pelo servidor 
  * @param buf string enviada pelo servidor
+ * @param number numero da resposta do servidor
  * @return 1 caso tenha chegado ao fim e 0 caso contrário
  */ 
-int reachedTheEnd(char * buf){
+int reachedTheEnd(char * buf, int number){
 	for (size_t i = 0; i < strlen(buf)-3; i++)
 	{
-		if ((atoi(&buf[i])== 220) && (buf[i+3] == ' ')) // verificar se na mensagem enviada encontra "220 " que indica o fim da mensagem 
+		if ((atoi(&buf[i])== number) && (buf[i+3] == ' ')) // verificar se na mensagem enviada encontra "220 " que indica o fim da mensagem 
 			return 1;
 	}
 	return 0;
@@ -111,7 +112,7 @@ int downloadFileFromSever(struct urlInfo url){
 		read(sockfdA, buf, 1024);
 		printf("%s",buf);
 
-		if (reachedTheEnd(buf)){ // se chegou ao fim da mensagem 
+		if (reachedTheEnd(buf,220)){ // se chegou ao fim da mensagem 
 			break;
 		}
 	}
@@ -135,12 +136,17 @@ int downloadFileFromSever(struct urlInfo url){
 			close(sockfdA);
 			exit(-9);
 		}
-		while (strncmp(buf,"331 ",4) != 0) // limpar as msg enviadas pelo servidor
+		while (1) // limpar as msg enviadas pelo servidor
 		{
+			if (reachedTheEnd(buf,331)){ // se chegou ao fim da mensagem 
+				break;
+			}
+
 			// RESPOSTA USER
 			bzero(buf,sizeof(buf)); // limpar o buffer
 			read(sockfdA, buf, 1024); // ler a resposta 
 			printf("%s",buf);
+			
 		}
 		
 		// se o utilizador não colocou a password no url
@@ -164,12 +170,17 @@ int downloadFileFromSever(struct urlInfo url){
 			close(sockfdA);
 			exit(-10);
 		}
-		while (strncmp(buf,"230 ",4) != 0) // limpar as msg enviadas pelo servidor
+		while (1) // limpar as msg enviadas pelo servidor
 		{
+			if (reachedTheEnd(buf,230)){ // se chegou ao fim da mensagem 
+				break;
+			}
+
 			// RESPOSTA PASS
 			bzero(buf,sizeof(buf)); // limpar o buffer
 			read(sockfdA, buf, 1024); // ler a resposta 
 			printf("%s",buf);
+			
 		}
 	}
 	
@@ -189,8 +200,12 @@ int downloadFileFromSever(struct urlInfo url){
 		close(sockfdA);
 		exit(-11);
 	}
-	while (strncmp(buf,"227 ",4) != 0) // limpar as msg enviadas pelo servidor
+	while (1) // limpar as msg enviadas pelo servidor
 	{
+		if (reachedTheEnd(buf,227)){ // se chegou ao fim da mensagem 
+			break;
+		}
+		
 		// RESPOSTA PASV
 		bzero(buf,sizeof(buf)); // limpar o buffer
 		read(sockfdA, buf, 1024); // ler a resposta 
@@ -216,8 +231,12 @@ int downloadFileFromSever(struct urlInfo url){
 		exit(-12);
 	}
 
-	while (strncmp(buf,"200 ",4) != 0) // limpar as msg enviadas pelo servidor
+	while (1) // limpar as msg enviadas pelo servidor
 	{
+		if (reachedTheEnd(buf,200)){ // se chegou ao fim da mensagem 
+			break;
+		}
+
 		// RESPOSTA TYPE
 		bzero(buf,sizeof(buf)); // limpar o buffer
 		read(sockfdA, buf, 1024); // ler a resposta 
@@ -262,8 +281,12 @@ int downloadFileFromSever(struct urlInfo url){
 			close(sockfdB);
 			exit(-15);
 		}
-		while (strncmp(buf,"250 ",4) != 0) // limpar as msg enviadas pelo servidor
+		while (1) // limpar as msg enviadas pelo servidor
 		{
+			if (reachedTheEnd(buf,250)){ // se chegou ao fim da mensagem 
+				break;
+			}
+
 			// RESPOSTA CWD
 			bzero(buf,sizeof(buf)); // limpar o buffer
 			read(sockfdA, buf, 1024); // ler a resposta 
@@ -290,8 +313,12 @@ int downloadFileFromSever(struct urlInfo url){
 		close(sockfdB);
 		exit(-16);
 	}
-	while (strncmp(buf,"150 ",4) != 0) // limpar as msg enviadas pelo servidor
+	while (1) // limpar as msg enviadas pelo servidor
 	{
+		if (reachedTheEnd(buf,150)){ // se chegou ao fim da mensagem 
+			break;
+		}
+		
 		// RESPOSTA RETR
 		bzero(buf,sizeof(buf)); // limpar o buffer
 		read(sockfdA, buf, 1024); // ler a resposta
