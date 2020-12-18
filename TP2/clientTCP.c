@@ -32,11 +32,12 @@ struct urlInfo
  * @param number numero da resposta do servidor
  * @return 1 caso tenha chegado ao fim e 0 caso contrário
  */ 
-int reachedTheEnd(char * buf, int number){
+int reachedTheEnd(char * buf, char *string){
 	for (size_t i = 0; i < strlen(buf)-3; i++)
 	{
-		if ((atoi(&buf[i])== number) && (buf[i+3] == ' ')) // verificar se na mensagem enviada encontra "220 " que indica o fim da mensagem 
+		if (strncmp(&buf[i],string,4) == 0){ // verificar se na mensagem enviada encontra "string " que indica o fim da mensagem 
 			return 1;
+		}
 	}
 	return 0;
 }
@@ -67,6 +68,44 @@ void getPassword(struct urlInfo *url){
 	char password[256]; // string que vai guardar a password inserida pelo utilizador
 	scanf("%s",password); // lê do sdtin a password que o utilizador inseriu
 	strncpy(url->password,password,strlen(password));
+}
+
+/**
+ * função que envia comandos e recebe as respostas do servidor
+ * @param sockfd identificador da ligação com o servidor 
+ * @param preComando pré conteudo do comando que queremos enviar para o servidor
+ * @param info informação que queremos enviar para o servidor
+ * @param numero indica o numero da resposta que queremos obter do servidor
+ * @return 1 em caso de sucesso 0 caso contrário
+ */ 
+int comunicationService(int sockfd,char *preComado,char *info,char *numero,char*buf,long buflength){
+
+	// ENVIAR COMANDO
+	char comando[strlen(preComado)+strlen(info)]; // string que vai guardar o comando juntamente com a informação (info)
+	sprintf(comando,preComado,info); // contrução do comando 
+	write(sockfd, comando, strlen(comando)); // enviar o comando para o servidor
+	printf("%s",comando); // imprimir no ecrã o comando enviado para o servidor
+
+	// RESPOSTA DO SERVIDOR
+	bzero(buf,buflength); // limpar o buffer
+	read(sockfd, buf, 1024); // ler a resposta dada pelo servidor
+	printf("%s",buf); // imprimir no ecrã a resposta do servidor
+
+	// verificar a resposta enviada pelo servidor 
+	if (strncmp(buf,numero,3) != 0){ // se a resposta não for a desejada
+		return 0;
+	}
+	while (1) // limpar as msg enviadas pelo servidor
+	{
+		if (reachedTheEnd(buf,numero)){ // se chegou ao fim da mensagem 
+			break;
+		}
+		// RESPOSTA DO SERVIDOR
+		bzero(buf,buflength); // limpar o buffer
+		read(sockfd, buf, 1024); // ler a resposta
+		printf("%s",buf);
+	}
+	return 1;
 }
 
 
@@ -112,7 +151,7 @@ int downloadFileFromSever(struct urlInfo url){
 		read(sockfdA, buf, 1024);
 		printf("%s",buf);
 
-		if (reachedTheEnd(buf,220)){ // se chegou ao fim da mensagem 
+		if (reachedTheEnd(buf,"220 ")){ // se chegou ao fim da mensagem 
 			break;
 		}
 	}
@@ -138,7 +177,7 @@ int downloadFileFromSever(struct urlInfo url){
 		}
 		while (1) // limpar as msg enviadas pelo servidor
 		{
-			if (reachedTheEnd(buf,331)){ // se chegou ao fim da mensagem 
+			if (reachedTheEnd(buf,"331 ")){ // se chegou ao fim da mensagem 
 				break;
 			}
 
@@ -154,94 +193,27 @@ int downloadFileFromSever(struct urlInfo url){
 			getPassword(&url);
 		}
 
-		// ENVIAR PASS
-		char password[7+strlen(url.password)]; // string que vai guardar o comando para introduzir a pass
-		sprintf(password,"pass %s\r\n",url.password); // contrução do comando pass
-		write(sockfdA, password, sizeof(password)); // enviar o comando pass <password>
-		printf("%s",password);
-
-		// REPOSTA PASS	
-		bzero(buf,sizeof(buf)); // limpar o buffer
-		read(sockfdA, buf, 1024); // ler a resposta ao comando pass
-		printf("%s",buf);
-
-		// verificar a resposta enviada pelo servidor 
-		if (strncmp(buf,"230",3) != 0){ // se a resposta não for a desejada
+		//envia o comando pass 
+		if(!comunicationService(sockfdA,"pass %s\r\n",url.password,"230 ",buf,sizeof(buf))){
 			close(sockfdA);
 			exit(-10);
 		}
-		while (1) // limpar as msg enviadas pelo servidor
-		{
-			if (reachedTheEnd(buf,230)){ // se chegou ao fim da mensagem 
-				break;
-			}
-
-			// RESPOSTA PASS
-			bzero(buf,sizeof(buf)); // limpar o buffer
-			read(sockfdA, buf, 1024); // ler a resposta 
-			printf("%s",buf);
-			
-		}
 	}
 	
-	// ENVIAR PASV
-	char pasv[7]; // string que vai guardar o comando de pasv
-	sprintf(pasv,"pasv\r\n"); // construção do comando pasv
-	write(sockfdA, pasv, strlen(pasv)); // enviar o comando pasv
-	printf("%s",pasv);
-
-	// RESPOSTA PASV
-	bzero(buf,sizeof(buf)); // limpar o buffer
-	read(sockfdA, buf, 1024); // ler a resposta ao comando pasv
-	printf("%s",buf);
-
-	// verificar a resposta enviada pelo servidor 
-	if (strncmp(buf,"227",3) != 0){ // se a resposta não for a desejada
+	//envia o comando pasv 
+	if(!comunicationService(sockfdA,"pasv\r\n","","227 ",buf,sizeof(buf))){
 		close(sockfdA);
 		exit(-11);
-	}
-	while (1) // limpar as msg enviadas pelo servidor
-	{
-		if (reachedTheEnd(buf,227)){ // se chegou ao fim da mensagem 
-			break;
-		}
-		
-		// RESPOSTA PASV
-		bzero(buf,sizeof(buf)); // limpar o buffer
-		read(sockfdA, buf, 1024); // ler a resposta 
-		printf("%s",buf);
 	}
 	
 	int porta = getPort(buf);
 	
-	// ENVIAR TYPE I - ALTERAR PARA BINARY MODE
-	char type[]= "type I\r\n"; // string que vai guardar o comando type I
-	write(sockfdA, type, strlen(type));  // enviar comando type I
-	printf("%s",type);
-
-	// RESPOSTA TYPE I
-	bzero(buf,sizeof(buf)); 
-	read(sockfdA, buf, 1024); 
-	printf("%s",buf);
-
-
-	// verificar a resposta enviada pelo servidor 
-	if (strncmp(buf,"200",3) != 0){ // se a resposta não for a desejada
+	//envia o comando type I 
+	if(!comunicationService(sockfdA,"type I\r\n","","200 ",buf,sizeof(buf))){
 		close(sockfdA);
 		exit(-12);
 	}
 
-	while (1) // limpar as msg enviadas pelo servidor
-	{
-		if (reachedTheEnd(buf,200)){ // se chegou ao fim da mensagem 
-			break;
-		}
-
-		// RESPOSTA TYPE
-		bzero(buf,sizeof(buf)); // limpar o buffer
-		read(sockfdA, buf, 1024); // ler a resposta 
-		printf("%s",buf);
-	}	
 
 	/*server address handling*/
 	bzero((char*)&server_addr,sizeof(server_addr));
@@ -263,38 +235,17 @@ int downloadFileFromSever(struct urlInfo url){
 		exit(-14);
 	}
 
-	if (strlen(url.path) != 0){
-		// ENVIAR CWD
-		char cwd[1024+6]; //string que vai conter o comando cwd juntamente como path do ficheiro
-		sprintf(cwd,"cwd %s\r\n",url.path); // contrução do comando cwd
-		write(sockfdA, cwd, strlen(cwd)); // enviar o comando cwd
-		printf("%s",cwd);
+	if (strlen(url.path) != 0){ // ser for necessário alterar de directorio
 
-		// RESPOSTA CWD
-		bzero(buf,sizeof(buf)); // limpar o buffer
-		read(sockfdA, buf, 1024); // ler a resposta ao comando cwd
-		printf("%s",buf);
-
-		// verificar a resposta enviada pelo servidor 
-		if(strncmp(buf,"250",3) != 0){ // se a resposta não for a desejada
+		//envia o comando cwd
+		if(!comunicationService(sockfdA,"cwd %s\r\n",url.path,"250 ",buf,sizeof(buf))){
 			close(sockfdA);
 			close(sockfdB);
 			exit(-15);
 		}
-		while (1) // limpar as msg enviadas pelo servidor
-		{
-			if (reachedTheEnd(buf,250)){ // se chegou ao fim da mensagem 
-				break;
-			}
-
-			// RESPOSTA CWD
-			bzero(buf,sizeof(buf)); // limpar o buffer
-			read(sockfdA, buf, 1024); // ler a resposta 
-			printf("%s",buf);
-		}
-		
+	
 	}
-
+	
 	// ENVIAR RETR
 	char retr[7+strlen(url.filename)]; // string que vai guardar o comando retr juntamente com o nome do ficheiro
 	sprintf(retr,"retr %s\r\n",url.filename); // contrução do comando retr
@@ -315,7 +266,7 @@ int downloadFileFromSever(struct urlInfo url){
 	}
 	while (1) // limpar as msg enviadas pelo servidor
 	{
-		if (reachedTheEnd(buf,150)){ // se chegou ao fim da mensagem 
+		if (reachedTheEnd(buf,"150 ")){ // se chegou ao fim da mensagem 
 			break;
 		}
 		// RESPOSTA RETR
@@ -332,7 +283,13 @@ int downloadFileFromSever(struct urlInfo url){
 		bzero(buf,sizeof(buf)); // limpar o buffer
 		bytes = read(sockfdB, buf, 1024); // ler conteudo do ficheiro enviado
 
-		if(bytes <= 0){ // quando o ficheiro chegar ao fim 
+		if(bytes < 0){ // em caso de erro
+			fclose(file);
+			close(sockfdA);
+			close(sockfdB);
+			exit(0);
+		}
+		if(bytes == 0){ // quando o ficheiro chegar ao fim 
 			break;
 		}
 
