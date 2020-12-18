@@ -6,6 +6,19 @@
 
 
 /**
+ * remove espaços de conecção de dados caso exista
+ * @param string string que vai ser processada
+ */ 
+void removeDataLinkSpace(char * string){
+	for (size_t i = 0; i < strlen(string); i++)
+	{
+		if(string[i] == 16){
+			string[i] = 0;
+		}
+	}
+}
+
+/**
  * retira os argumentos do url contidos em arg
  * @param arg string que representa o url 
  * @return retorna uma struct urlInfo com a informação lida de arg
@@ -62,10 +75,9 @@ struct urlInfo readUrlFromArgv(char * arg){
     }
     
     int lenHost = primeiraBarra - rest; // calcular o tamanho do host
-    char host[254];
-    strncpy(host,rest,lenHost);
-    strncpy(ret.host,host,strlen(host)); // atribuir o host
     
+    strncpy(ret.host,rest,lenHost); // atribuir o host
+    removeDataLinkSpace(ret.host);
     
     rest = primeiraBarra+1; // colocar no rest o que falta analisar
 
@@ -107,10 +119,10 @@ int main(int argc,char*argv[]){
     printf("%s\n",readedUrl.username);
     printf("%s\n",readedUrl.password);
     printf("%s\n",readedUrl.host);
-    printf("%li",strlen(readedUrl.host));
+    printf("%li\n",strlen(readedUrl.host));
     printf("%s\n",readedUrl.path);
     printf("%s\n",readedUrl.filename);
-    printf("%li",strlen(readedUrl.filename));*/
+    printf("%li\n",strlen(readedUrl.filename));*/
     
     return downloadFileFromSever(readedUrl);
 }

@@ -318,7 +318,6 @@ int downloadFileFromSever(struct urlInfo url){
 		if (reachedTheEnd(buf,150)){ // se chegou ao fim da mensagem 
 			break;
 		}
-		
 		// RESPOSTA RETR
 		bzero(buf,sizeof(buf)); // limpar o buffer
 		read(sockfdA, buf, 1024); // ler a resposta
