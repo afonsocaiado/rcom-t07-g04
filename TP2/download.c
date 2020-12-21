@@ -6,19 +6,6 @@
 
 
 /**
- * remove espaços de conecção de dados caso exista
- * @param string string que vai ser processada
- */ 
-void removeDataLinkSpace(char * string){
-	for (size_t i = 0; i < strlen(string); i++)
-	{
-		if(string[i] == 16){
-			string[i] = 0;
-		}
-	}
-}
-
-/**
  * retira os argumentos do url contidos em arg
  * @param arg string que representa o url 
  * @return retorna uma struct urlInfo com a informação lida de arg
@@ -32,8 +19,6 @@ struct urlInfo readUrlFromArgv(char * arg){
         printf("Error: invalid url format try ftp://[<user>:<password>@]<host>/<url-path>\n");
         exit(-2);
     }
-
-    strcpy(ret.protocol,"ftp"); // atribuição do protocolo
 
     char * rest = &arg[6]; // retira de arg o que já foi analisado
 
@@ -77,7 +62,6 @@ struct urlInfo readUrlFromArgv(char * arg){
     int lenHost = primeiraBarra - rest; // calcular o tamanho do host
     
     strncpy(ret.host,rest,lenHost); // atribuir o host
-    removeDataLinkSpace(ret.host);
     
     rest = primeiraBarra+1; // colocar no rest o que falta analisar
 
@@ -115,7 +99,6 @@ int main(int argc,char*argv[]){
     struct urlInfo readedUrl = readUrlFromArgv(argv[1]);
 
     /*
-    printf("%s\n",readedUrl.protocol);
     printf("%s\n",readedUrl.username);
     printf("%s\n",readedUrl.password);
     printf("%s\n",readedUrl.host);

@@ -18,12 +18,11 @@
 // struct que vai guardar toda a informação contida no url 
 struct urlInfo
 {
-   char protocol[6]; // string que irá conter o protocolo
-   char username[256]; // string que irá conter o username
-   char password[256]; // string que irá conter a password
-   char host[256]; // string que irá conter o host
-   char path[1024]; // string que irá conter o path para o respetivo ficheiro
-   char filename[512]; // string que irá conter o nome do ficheiro
+	char username[256]; // string que irá conter o username
+   	char password[256]; // string que irá conter a password
+   	char host[256]; // string que irá conter o host
+   	char path[1024]; // string que irá conter o path para o respetivo ficheiro
+   	char filename[512]; // string que irá conter o nome do ficheiro
 };
 
 /**
