@@ -113,7 +113,7 @@ int comunicationService(int sockfd,char *preComado,char *info,char *numero,char*
  * @param url struct que contém toda a informação necessária para o download do ficheiro
  * @return 0 em caso de sucesso outro em caso de erro
  */ 
-int downloadFileFromSever(struct urlInfo url){
+int downloadFileFromServer(struct urlInfo url){
 
 	int	sockfdA, sockfdB;
 	struct	sockaddr_in server_addr;

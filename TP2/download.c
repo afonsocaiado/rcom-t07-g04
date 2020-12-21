@@ -107,5 +107,5 @@ int main(int argc,char*argv[]){
     printf("%s\n",readedUrl.filename);
     printf("%li\n",strlen(readedUrl.filename));*/
     
-    return downloadFileFromSever(readedUrl);
+    return downloadFileFromServer(readedUrl);
 }
